@@ -40,7 +40,6 @@ fun CurrentOverlayEntriesItem(
                 modifier = Modifier
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = rememberRipple(bounded = false)
                     ) {
                         onRemove(info)
                     }

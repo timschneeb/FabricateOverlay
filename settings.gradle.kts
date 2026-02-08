@@ -6,11 +6,14 @@ pluginManagement {
         maven { url = uri("https://dl.bintray.com/kotlin/kotlin-eap") }
     }
     plugins {
-        id 'com.android.application' version '7.3.0-alpha08'
-        id 'com.android.library' version '7.3.0-alpha08'
-        id 'org.jetbrains.kotlin.android' version '1.6.10'
+        id("com.android.application") version "9.0.0"
+        id("com.android.library") version "9.0.0"
+        id("org.jetbrains.kotlin.android") version "2.3.10"
+        id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
     }
 }
+
+@Suppress("UnstableApiUsage")
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -19,6 +22,6 @@ dependencyResolutionManagement {
         maven { url = uri("https://dl.bintray.com/kotlin/kotlin-eap") }
     }
 }
+
 rootProject.name = "FabricateOverlay"
-include ':app'
-include ':fabricateoverlay'
+include(":app", ":fabricateoverlay")

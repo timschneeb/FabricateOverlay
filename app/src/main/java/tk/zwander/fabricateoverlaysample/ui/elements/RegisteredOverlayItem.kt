@@ -63,7 +63,6 @@ fun RegisteredOverlayItem(
                 modifier = Modifier
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = rememberRipple(bounded = false)
                     ) {
                         showingRemoveDialog = true
                     }

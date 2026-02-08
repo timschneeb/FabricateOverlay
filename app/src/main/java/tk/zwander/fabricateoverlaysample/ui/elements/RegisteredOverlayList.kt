@@ -26,7 +26,7 @@ fun RegisteredOverlayList(
         OverlayAPI.getInstance(context) { api ->
             scope.launch {
                 registeredOverlays = withContext(Dispatchers.IO) {
-                    api.getAllOverlays(UserHandle.USER_CURRENT).mapNotNull { (key, value) ->
+                    api.getAllOverlays(-2 /* UserHandle.USER_CURRENT */).mapNotNull { (key, value) ->
                         val filtered = value.filter { item -> item.isFabricated && item.overlayName?.contains(context.packageName) == true }
                         if (filtered.isEmpty()) null
                         else (context.packageManager.run {

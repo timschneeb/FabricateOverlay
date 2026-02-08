@@ -89,7 +89,7 @@ fun AppListPage(
 
                             if (item.label.contains(filter, true) || item.info.packageName.contains(filter, true)) {
                                 AppItem(item) { info ->
-                                    navController.currentBackStackEntry?.arguments?.putParcelable("appInfo", info.info)
+                                    navController.currentBackStackEntry?.savedStateHandle?.set("appInfo", info.info)
 
                                     navController.navigate(
                                         route = "list_overlays"
