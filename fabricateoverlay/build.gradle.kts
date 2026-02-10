@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    compileSdk = 31
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 31
@@ -39,7 +39,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("com.google.android.material:material:1.13.0")
+    implementation("com.google.android.material:material:1.14.0-alpha09")
 
     val shizukuVersion = "13.1.5"
     implementation("dev.rikka.shizuku:api:$shizukuVersion")

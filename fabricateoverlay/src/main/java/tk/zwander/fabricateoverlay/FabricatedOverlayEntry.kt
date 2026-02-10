@@ -1,5 +1,8 @@
 package tk.zwander.fabricateoverlay
 
+import android.os.Parcel
+import android.os.Parcelable
+
 /**
  * A resource entry for a [FabricatedOverlay].
  *
@@ -13,4 +16,28 @@ data class FabricatedOverlayEntry(
     var resourceName: String,
     var resourceType: Int,
     var resourceValue: Int
-)
+) : Parcelable {
+    constructor(parcel: Parcel) : this(
+        parcel.readString() ?: "",
+        parcel.readInt(),
+        parcel.readInt()
+    )
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeString(resourceName)
+        parcel.writeInt(resourceType)
+        parcel.writeInt(resourceValue)
+    }
+
+    override fun describeContents(): Int = 0
+
+    companion object CREATOR : Parcelable.Creator<FabricatedOverlayEntry> {
+        override fun createFromParcel(parcel: Parcel): FabricatedOverlayEntry {
+            return FabricatedOverlayEntry(parcel)
+        }
+
+        override fun newArray(size: Int): Array<FabricatedOverlayEntry?> {
+            return arrayOfNulls(size)
+        }
+    }
+}

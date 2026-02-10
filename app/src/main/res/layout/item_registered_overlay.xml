@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.listitem.ListItemLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:id="@+id/list_item_layout">
+
+    <com.google.android.material.listitem.ListItemCardView
+        style="?attr/listItemCardViewSegmentedStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:checkable="false">
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:paddingStart="0dp"
+            android:paddingEnd="8dp"
+            android:background="?attr/colorSurface">
+
+            <CheckBox
+                android:id="@+id/cb_enabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:buttonTint="?attr/colorPrimary"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:layout_marginEnd="4dp"
+                android:duplicateParentState="true" />
+
+            <TextView
+                android:id="@+id/tv_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="16sp"
+                android:textColor="?attr/colorOnSurface"
+                android:ellipsize="end"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:duplicateParentState="true" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/iv_delete"
+                style="?attr/materialIconButtonFilledStyle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/delete_confirmation"
+                app:icon="@drawable/ic_delete"
+                android:duplicateParentState="true" />
+
+        </LinearLayout>
+
+    </com.google.android.material.listitem.ListItemCardView>
+
+</com.google.android.material.listitem.ListItemLayout>

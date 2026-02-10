@@ -1,29 +1,34 @@
 package tk.zwander.fabricateoverlaysample
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
+import android.view.Menu
+import android.view.ViewGroup
 import android.widget.TextView
-import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.darkColors
-import androidx.compose.runtime.*
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+import androidx.activity.enableEdgeToEdge
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import tk.zwander.fabricateoverlay.ShizukuUtils
-import tk.zwander.fabricateoverlaysample.ui.pages.AppListPage
-import tk.zwander.fabricateoverlaysample.ui.pages.CurrentOverlayEntriesListPage
-import tk.zwander.fabricateoverlaysample.ui.pages.HomePage
+import com.google.android.material.appbar.MaterialToolbar
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+import tk.zwander.fabricateoverlaysample.ui.fragments.AppListFragment
+import tk.zwander.fabricateoverlaysample.ui.fragments.CurrentOverlayEntriesFragment
+import tk.zwander.fabricateoverlaysample.ui.fragments.HomeFragment
+import androidx.appcompat.widget.SearchView
+import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
+import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
 
 @SuppressLint("PrivateApi")
 class MainActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityMainBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -65,61 +70,96 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun init() {
-        setContent {
-            MaterialTheme(
-                colors = darkColors()
-            ) {
-                Surface {
-                    var appInfoArg by remember {
-                        mutableStateOf<ApplicationInfo?>(null)
-                    }
-                    val navController = rememberNavController()
-                    val activity = LocalActivity.current
+        // Switch to view-based layout (fragment container)
+        binding = ActivityMainBinding.inflate(layoutInflater, null, false)
+        setContentView(binding.root)
+        enableEdgeToEdge()
 
-                    NavHost(navController = navController, startDestination = "main") {
-                        composable("main") {
-                            activity?.setTitle(R.string.overlays)
+        // Setup toolbar as action bar
+        setSupportActionBar(binding.toolbar)
 
-                            HomePage(navController)
-                        }
-                        composable("app_list") {
-                            activity?.setTitle(R.string.apps)
-
-                            AppListPage(navController)
-                        }
-                        composable(
-                            route = "list_overlays"
-                        ) {
-                            // Try to read appInfo from the previous back stack entry's SavedStateHandle
-                            val prevEntry = navController.previousBackStackEntry
-                            val saved = prevEntry?.savedStateHandle?.getLiveData<ApplicationInfo>("appInfo")
-                            saved?.value?.let {
-                                appInfoArg = it
-                                // Clear it to avoid stale data on future navigations
-                                prevEntry.savedStateHandle.remove<ApplicationInfo>("appInfo")
-                            }
-
-                            activity?.title = appInfoArg?.loadLabel(activity.packageManager)
-
-                            // If appInfoArg is null, show nothing or navigate back to list
-                            if (appInfoArg != null) {
-                                CurrentOverlayEntriesListPage(
-                                    navController,
-                                    appInfoArg!!
-                                )
-                            } else {
-                                // Fallback: navigate back to app list to avoid crash
-                                LaunchedEffect(Unit) {
-                                    navController.navigate("app_list") {
-                                        // pop the current entry to avoid stacking
-                                        popUpTo("main")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        ViewCompat.setOnApplyWindowInsetsListener(binding.toolbar) { v, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.updateLayoutParams<ViewGroup.MarginLayoutParams> { leftMargin = insets.left; topMargin = insets.top; rightMargin = insets.right }
+            WindowInsetsCompat.CONSUMED
         }
+
+        // Load the home fragment
+        if (supportFragmentManager.findFragmentById(R.id.fragment_container) == null) {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, HomeFragment())
+                .commit()
+        }
+
+        supportFragmentManager.addOnBackStackChangedListener {
+            supportActionBar?.setDisplayHomeAsUpEnabled(supportFragmentManager.backStackEntryCount > 0)
+            invalidateOptionsMenu()
+        }
+
+        ensureHasOverlayPermission()
+    }
+
+    // Navigation helpers used by fragments
+    fun navigateToAppList() {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, AppListFragment())
+            .addToBackStack(null)
+            .commit()
+
+        title = getString(R.string.apps)
+        invalidateOptionsMenu()
+    }
+
+    fun navigateToCurrentOverlays(appInfo: ApplicationInfo) {
+        val frag = CurrentOverlayEntriesFragment()
+        val args = Bundle()
+        args.putParcelable("appInfo", appInfo)
+        frag.arguments = args
+
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack(null)
+            .commit()
+
+        title = appInfo.loadLabel(packageManager)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        val searchItem = menu.findItem(R.id.action_search)
+        // only show search when the current fragment supports it
+        val frag = supportFragmentManager.findFragmentById(R.id.fragment_container)
+        searchItem.isVisible = frag is Searchable
+
+        val sv = searchItem.actionView as? SearchView
+        sv?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                forwardSearchQuery(query ?: "")
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                forwardSearchQuery(newText ?: "")
+                return true
+            }
+        })
+        return true
+    }
+
+    private fun forwardSearchQuery(q: String) {
+        val frag = supportFragmentManager.findFragmentById(R.id.fragment_container)
+        if (frag is Searchable) frag.onSearchQuery(q)
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        if (supportFragmentManager.backStackEntryCount > 0) {
+            supportFragmentManager.popBackStack()
+            return true
+        }
+        return super.onSupportNavigateUp()
+    }
+
+    interface Searchable {
+        fun onSearchQuery(q: String)
     }
 }

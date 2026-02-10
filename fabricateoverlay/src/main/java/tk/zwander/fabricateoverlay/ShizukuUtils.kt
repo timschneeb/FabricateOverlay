@@ -20,6 +20,16 @@ object ShizukuUtils {
         get() = Shizuku.pingBinder()
 
     /**
+     * Gets the UID of the Shizuku service. If Shizuku isn't available, this will return -1.
+     */
+    val uid: Int
+        get() = if (shizukuAvailable) {
+            Shizuku.getUid()
+        } else {
+            -1
+        }
+
+    /**
      * Checks if the current app has permission to use Shizuku.
      * This works on Shizuku <11 and Shizuku >=11.
      *
