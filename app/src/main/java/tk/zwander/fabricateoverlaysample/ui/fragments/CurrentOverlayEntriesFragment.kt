@@ -1,6 +1,5 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
-import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -33,6 +32,49 @@ class CurrentOverlayEntriesFragment : Fragment() {
         } else {
             @Suppress("DEPRECATION")
             requireArguments().getParcelable("appInfo")!!
+        }
+        // Register result listeners on the fragment lifecycle so they are active while this fragment
+        // exists in the FragmentManager (even when its view is destroyed while a child is on top).
+        parentFragmentManager.setFragmentResultListener(ChooseResourcesFragment.KEY_RESOURCES_SELECTED, this) { _, bundle ->
+            val selected = bundle.getParcelableArrayList<FabricatedOverlayEntry>(ChooseResourcesFragment.KEY_SELECTED_ENTRIES)
+            android.util.Log.d("CurrentOverlayEntries", "Received fragment result: selected_entries size=${selected?.size}")
+            if (selected != null) {
+                // Build quick lookup maps for full and short names
+                val selectedByFull = selected.associateBy { it.resourceName }
+                val selectedByShort = selected.associateBy { it.resourceName.substringAfterLast('/') }
+
+                // Use LinkedHashMap to preserve insertion order: first keep existing selected entries
+                // in their original order (if they remain selected), then append any remaining selected
+                // entries in the order the picker returned them. Keys are the full resourceName.
+                val resultMap = LinkedHashMap<String, FabricatedOverlayEntry>()
+
+                // Preserve original order for entries that remain selected (match by full or short name)
+                for (old in entries) {
+                    val fullMatch = selectedByFull[old.resourceName]
+                    if (fullMatch != null) {
+                        resultMap[fullMatch.resourceName] = fullMatch
+                        continue
+                    }
+
+                    val short = old.resourceName.substringAfterLast('/')
+                    val shortMatch = selectedByShort[short]
+                    if (shortMatch != null) {
+                        resultMap[shortMatch.resourceName] = shortMatch
+                    }
+                }
+
+                // Append remaining selected entries (in picker order), avoiding duplicates
+                for (s in selected) {
+                    if (!resultMap.containsKey(s.resourceName)) {
+                        resultMap[s.resourceName] = s
+                    }
+                }
+
+                // Replace backing list with deduplicated selection
+                entries.clear()
+                entries.addAll(resultMap.values)
+                if (::adapter.isInitialized) adapter.notifyDataSetChanged()
+            }
         }
     }
 
@@ -90,50 +132,6 @@ class CurrentOverlayEntriesFragment : Fragment() {
         }
 
         return binding.root
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        // Listen for selections returned from the resource picker
-        parentFragmentManager.setFragmentResultListener(ChooseResourcesFragment.KEY_RESOURCES_SELECTED, viewLifecycleOwner) { _, bundle ->
-            val selected = bundle.getParcelableArrayList<FabricatedOverlayEntry>(ChooseResourcesFragment.KEY_SELECTED_ENTRIES)
-            if (selected != null) {
-                // Prepare lookup sets: full names and short names (after '/')
-                val selectedByFull = selected.associateBy { it.resourceName }.toMutableMap()
-                val selectedShortToFull = selected.mapNotNull { e ->
-                    val short = e.resourceName.substringAfterLast('/')
-                    short to e
-                }.toMap().toMutableMap()
-
-                val newList = mutableListOf<FabricatedOverlayEntry>()
-
-                // Keep entries that match either full name or short name; use the selected entry version
-                for (old in entries) {
-                    val fullMatch = selectedByFull.remove(old.resourceName)
-                    if (fullMatch != null) {
-                        newList.add(fullMatch)
-                        continue
-                    }
-
-                    val oldShort = old.resourceName.substringAfterLast('/')
-                    val shortMatch = selectedShortToFull.remove(oldShort)
-                    if (shortMatch != null) {
-                        newList.add(shortMatch)
-                    }
-                }
-
-                // Append any remaining newly selected entries
-                for ((_, v) in selectedByFull) newList.add(v)
-                for ((_, v) in selectedShortToFull) newList.add(v)
-
-                // Replace backing list with the new selection (this removes items the user unselected)
-                entries.clear()
-                entries.addAll(newList)
-                if (::adapter.isInitialized) adapter.notifyDataSetChanged()
-            }
-        }
     }
 
     override fun onDestroyView() {

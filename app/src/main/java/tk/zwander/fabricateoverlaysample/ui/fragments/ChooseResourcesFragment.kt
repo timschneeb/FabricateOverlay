@@ -39,6 +39,19 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable {
     private val selectedItems = mutableSetOf<AvailableResourceItemData>()
 
     private var existingEntries: List<FabricatedOverlayEntry> = listOf()
+    private var resultPosted = false
+
+    // Post the currently selected entries to the parent fragment once.
+    private fun postSelections() {
+        if (resultPosted) return
+        val toPost = ArrayList(selectedItems.map { FabricatedOverlayEntry(it.name, it.type, 0) })
+        android.util.Log.d("ChooseResources", "postSelections: posting ${toPost.size} entries")
+        val bundle = Bundle().apply {
+            putParcelableArrayList(KEY_SELECTED_ENTRIES, toPost)
+        }
+        parentFragmentManager.setFragmentResult(KEY_RESOURCES_SELECTED, bundle)
+        resultPosted = true
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         binding = FragmentResourceSelectionBinding.inflate(inflater, container, false)
@@ -81,13 +94,7 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable {
         // Intercept back presses so we can implicitly confirm selections when navigating back.
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                val bundle = Bundle().apply {
-                    putParcelableArrayList(
-                        KEY_SELECTED_ENTRIES,
-                        ArrayList(selectedItems.map { FabricatedOverlayEntry(it.name, it.type, 0) })
-                    )
-                }
-                parentFragmentManager.setFragmentResult(KEY_RESOURCES_SELECTED, bundle)
+                postSelections()
                 parentFragmentManager.popBackStack()
             }
         })
@@ -180,6 +187,15 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable {
     // Called by MainActivity when the action bar SearchView emits text
     override fun onSearchQuery(q: String) {
         filter(q)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // If the fragment is being removed (user navigated away) and results haven't been posted,
+        // post them so the parent receives the final selection. Ignore configuration changes.
+        if (isRemoving && !requireActivity().isChangingConfigurations) {
+            postSelections()
+        }
     }
 
     companion object {
