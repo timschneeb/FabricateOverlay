@@ -32,7 +32,7 @@ import tk.zwander.fabricateoverlaysample.ui.adapters.SelectableResourceItemAdapt
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 import tk.zwander.fabricateoverlaysample.util.getAppResources
 
-class ChooseResourcesFragment : Fragment(), MainActivity.Searchable {
+class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivity.TitleProvider {
     private lateinit var binding: FragmentResourceSelectionBinding
     private lateinit var adapter: SelectableResourceItemAdapter
     private var allResourcesByType: Map<String, List<AvailableResourceItemData>> = mapOf()
@@ -45,7 +45,6 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable {
     private fun postSelections() {
         if (resultPosted) return
         val toPost = ArrayList(selectedItems.map { FabricatedOverlayEntry(it.name, it.type, 0) })
-        android.util.Log.d("ChooseResources", "postSelections: posting ${toPost.size} entries")
         val bundle = Bundle().apply {
             putParcelableArrayList(KEY_SELECTED_ENTRIES, toPost)
         }
@@ -84,7 +83,6 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable {
             ?: listOf()
 
         info?.let { loadResources(it) }
-
         return binding.root
     }
 
@@ -196,6 +194,10 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable {
         if (isRemoving && !requireActivity().isChangingConfigurations) {
             postSelections()
         }
+    }
+
+    override fun toolbarTitle(): CharSequence? {
+        return requireContext().getString(R.string.resources_select)
     }
 
     companion object {

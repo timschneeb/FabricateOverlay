@@ -12,19 +12,24 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import org.lsposed.hiddenapibypass.HiddenApiBypass
-import tk.zwander.fabricateoverlay.ShizukuUtils
 import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
+import tk.zwander.fabricateoverlay.ShizukuUtils
 import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
 import tk.zwander.fabricateoverlaysample.ui.fragments.AppListFragment
+import tk.zwander.fabricateoverlaysample.ui.fragments.ChooseResourcesFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.CurrentOverlayEntriesFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.HomeFragment
-import tk.zwander.fabricateoverlaysample.ui.fragments.ChooseResourcesFragment
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showAlert
 
 @SuppressLint("PrivateApi")
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+
+    // Fragments can implement this to provide a toolbar title that the activity will use
+    interface TitleProvider {
+        fun toolbarTitle(): CharSequence?
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,15 +79,31 @@ class MainActivity : AppCompatActivity() {
         if (supportFragmentManager.findFragmentById(R.id.fragment_container) == null) {
             supportFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, HomeFragment())
-                .commit()
+                .commitNow()
         }
 
         supportFragmentManager.addOnBackStackChangedListener {
             supportActionBar?.setDisplayHomeAsUpEnabled(supportFragmentManager.backStackEntryCount > 0)
             invalidateOptionsMenu()
+            // Keep the action bar title in sync with the current top-most fragment
+            updateTitleFromTopFragment()
         }
 
+        // Try to set the title from the currently visible fragment on startup
+        updateTitleFromTopFragment()
+
         ensureHasOverlayPermission()
+    }
+
+    private fun updateTitleFromTopFragment() {
+        // Find the top-most visible fragment and ask it for a title if it provides one
+        val frag = supportFragmentManager.fragments.asReversed().firstOrNull { it != null }
+        title = if (frag is TitleProvider) {
+            frag.toolbarTitle()
+        } else {
+            // Fallback to the app name
+            getString(R.string.app_name)
+        }
     }
 
     // Navigation helpers used by fragments
@@ -91,8 +112,6 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, AppListFragment())
             .addToBackStack(null)
             .commit()
-
-        title = getString(R.string.apps)
         invalidateOptionsMenu()
     }
 
@@ -106,8 +125,6 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, frag)
             .addToBackStack(null)
             .commit()
-
-        title = appInfo.loadLabel(packageManager)
     }
 
     // Navigate to the resources picker for the given app. Optionally pass existing selected entries
@@ -125,7 +142,6 @@ class MainActivity : AppCompatActivity() {
             .addToBackStack(null)
             .commit()
 
-        title = getString(R.string.resources_select)
         invalidateOptionsMenu()
     }
 

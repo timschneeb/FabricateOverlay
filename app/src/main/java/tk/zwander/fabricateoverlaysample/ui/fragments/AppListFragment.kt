@@ -12,12 +12,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import tk.zwander.fabricateoverlaysample.data.LoadedApplicationInfo
-import tk.zwander.fabricateoverlaysample.ui.adapters.AppListAdapter
 import tk.zwander.fabricateoverlaysample.MainActivity
+import tk.zwander.fabricateoverlaysample.R
+import tk.zwander.fabricateoverlaysample.data.LoadedApplicationInfo
 import tk.zwander.fabricateoverlaysample.databinding.FragmentAppListBinding
+import tk.zwander.fabricateoverlaysample.ui.adapters.AppListAdapter
 
-class AppListFragment : Fragment(), MainActivity.Searchable {
+class AppListFragment : Fragment(), MainActivity.Searchable, MainActivity.TitleProvider {
     private val job = Job()
     private val scope = CoroutineScope(Dispatchers.Main + job)
     private var allApps: List<LoadedApplicationInfo> = listOf()
@@ -91,4 +92,6 @@ class AppListFragment : Fragment(), MainActivity.Searchable {
         binding.rvApps.adapter = null
         scope.cancel()
     }
+
+    override fun toolbarTitle() = requireContext().getString(R.string.apps)
 }

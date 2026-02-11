@@ -11,13 +11,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tk.zwander.fabricateoverlay.OverlayAPI
+import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.FragmentHomeBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.RegisteredListItem
 import tk.zwander.fabricateoverlaysample.ui.adapters.RegisteredOverlaySectionAdapter
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 
-class HomeFragment : Fragment() {
+class HomeFragment : Fragment(), MainActivity.TitleProvider {
     private lateinit var binding: FragmentHomeBinding
     private lateinit var adapter: RegisteredOverlaySectionAdapter
     private var cachedItems: List<RegisteredListItem> = listOf()
@@ -58,10 +59,11 @@ class HomeFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        activity?.title = getString(R.string.overlays)
         // Always reload overlays when resuming to ensure newly created overlays are displayed
         loadOverlays(true)
     }
+
+    override fun toolbarTitle() = getString(R.string.overlays)
 
     private fun loadOverlays(forceReload: Boolean) {
         if (!forceReload && cachedItems.isNotEmpty())

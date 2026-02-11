@@ -17,7 +17,7 @@ import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapte
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showInputAlert
 
-class CurrentOverlayEntriesFragment : Fragment() {
+class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
     private val entries = mutableListOf<FabricatedOverlayEntry>()
     private lateinit var appInfo: ApplicationInfo
 
@@ -37,7 +37,7 @@ class CurrentOverlayEntriesFragment : Fragment() {
         // exists in the FragmentManager (even when its view is destroyed while a child is on top).
         parentFragmentManager.setFragmentResultListener(ChooseResourcesFragment.KEY_RESOURCES_SELECTED, this) { _, bundle ->
             val selected = bundle.getParcelableArrayList<FabricatedOverlayEntry>(ChooseResourcesFragment.KEY_SELECTED_ENTRIES)
-            android.util.Log.d("CurrentOverlayEntries", "Received fragment result: selected_entries size=${selected?.size}")
+            android.util.Log.d("CurrentOverlayEntries", "Received fragment result: selected_entries size=${'$'}{selected?.size}")
             if (selected != null) {
                 // Build quick lookup maps for full and short names
                 val selectedByFull = selected.associateBy { it.resourceName }
@@ -107,7 +107,7 @@ class CurrentOverlayEntriesFragment : Fragment() {
                     .replace("_.", "_")
                     .replace("._", ".")
 
-                val fullName = "${ctx.packageName}.${appInfo.packageName}.$name"
+                val fullName = "${'$'}{ctx.packageName}.${'$'}{appInfo.packageName}.${'$'}name"
 
                 ctx.ensureHasOverlayPermission {
                     OverlayAPI.getInstance(ctx) { api ->
@@ -123,9 +123,8 @@ class CurrentOverlayEntriesFragment : Fragment() {
                             }
                         )
 
-                        // pop back to main fragment and set title
+                        // pop back to main fragment
                         activity?.supportFragmentManager?.popBackStackImmediate(null, 0)
-                        activity?.title = ctx.getString(R.string.overlays)
                     }
                 }
             }
@@ -137,5 +136,9 @@ class CurrentOverlayEntriesFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         binding.rvEntries.adapter = null
+    }
+
+    override fun toolbarTitle(): CharSequence? {
+        return appInfo.loadLabel(requireContext().packageManager)
     }
 }
