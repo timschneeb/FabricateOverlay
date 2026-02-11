@@ -1,5 +1,6 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
+import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,14 +11,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import tk.zwander.fabricateoverlay.FabricatedOverlay
 import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
 import tk.zwander.fabricateoverlay.OverlayAPI
+import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
-import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
-import tk.zwander.fabricateoverlaysample.ui.fragments.ListAvailableResourcesDialogFragment
 import tk.zwander.fabricateoverlaysample.databinding.FragmentCurrentOverlaysBinding
+import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showInputAlert
-import kotlin.collections.forEach
-import kotlin.collections.set
 
 class CurrentOverlayEntriesFragment : Fragment() {
     private val entries = mutableListOf<FabricatedOverlayEntry>()
@@ -28,14 +27,12 @@ class CurrentOverlayEntriesFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        appInfo = requireArguments().getParcelable("appInfo")!!
-
-        parentFragmentManager.setFragmentResultListener("list_resource_added", this) { _, bundle ->
-            val entry = bundle.getParcelable("entry") as? FabricatedOverlayEntry
-            if (entry != null) {
-                entries.add(entry)
-                adapter.notifyItemInserted(entries.size - 1)
-            }
+        // Defer fragment result listeners until the view exists (registered in onViewCreated).
+        appInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            requireArguments().getParcelable("appInfo", ApplicationInfo::class.java)!!
+        } else {
+            @Suppress("DEPRECATION")
+            requireArguments().getParcelable("appInfo")!!
         }
     }
 
@@ -48,17 +45,14 @@ class CurrentOverlayEntriesFragment : Fragment() {
 
         binding.rvEntries.apply {
             layoutManager = LinearLayoutManager(requireContext())
-            adapter = CurrentOverlayEntriesAdapter(entries).also {
+            adapter = CurrentOverlayEntriesAdapter(appInfo, entries).also {
                 this@CurrentOverlayEntriesFragment.adapter = it
             }
         }
 
         binding.btnAdd.setOnClickListener {
-            val frag = ListAvailableResourcesDialogFragment()
-            val args = Bundle()
-            args.putParcelable("appInfo", appInfo)
-            frag.arguments = args
-            frag.show(parentFragmentManager, "list_resources")
+            val current = if(entries.isEmpty()) null else ArrayList(entries)
+            (activity as? MainActivity)?.navigateToResourcePicker(appInfo, current)
         }
 
         binding.btnSave.setOnClickListener {
@@ -96,6 +90,50 @@ class CurrentOverlayEntriesFragment : Fragment() {
         }
 
         return binding.root
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Listen for selections returned from the resource picker
+        parentFragmentManager.setFragmentResultListener(ChooseResourcesFragment.KEY_RESOURCES_SELECTED, viewLifecycleOwner) { _, bundle ->
+            val selected = bundle.getParcelableArrayList<FabricatedOverlayEntry>(ChooseResourcesFragment.KEY_SELECTED_ENTRIES)
+            if (selected != null) {
+                // Prepare lookup sets: full names and short names (after '/')
+                val selectedByFull = selected.associateBy { it.resourceName }.toMutableMap()
+                val selectedShortToFull = selected.mapNotNull { e ->
+                    val short = e.resourceName.substringAfterLast('/')
+                    short to e
+                }.toMap().toMutableMap()
+
+                val newList = mutableListOf<FabricatedOverlayEntry>()
+
+                // Keep entries that match either full name or short name; use the selected entry version
+                for (old in entries) {
+                    val fullMatch = selectedByFull.remove(old.resourceName)
+                    if (fullMatch != null) {
+                        newList.add(fullMatch)
+                        continue
+                    }
+
+                    val oldShort = old.resourceName.substringAfterLast('/')
+                    val shortMatch = selectedShortToFull.remove(oldShort)
+                    if (shortMatch != null) {
+                        newList.add(shortMatch)
+                    }
+                }
+
+                // Append any remaining newly selected entries
+                for ((_, v) in selectedByFull) newList.add(v)
+                for ((_, v) in selectedShortToFull) newList.add(v)
+
+                // Replace backing list with the new selection (this removes items the user unselected)
+                entries.clear()
+                entries.addAll(newList)
+                if (::adapter.isInitialized) adapter.notifyDataSetChanged()
+            }
+        }
     }
 
     override fun onDestroyView() {

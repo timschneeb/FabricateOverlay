@@ -13,10 +13,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import tk.zwander.fabricateoverlay.ShizukuUtils
+import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
 import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
 import tk.zwander.fabricateoverlaysample.ui.fragments.AppListFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.CurrentOverlayEntriesFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.HomeFragment
+import tk.zwander.fabricateoverlaysample.ui.fragments.ChooseResourcesFragment
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showAlert
 
@@ -108,11 +110,30 @@ class MainActivity : AppCompatActivity() {
         title = appInfo.loadLabel(packageManager)
     }
 
+    // Navigate to the resources picker for the given app. Optionally pass existing selected entries
+    fun navigateToResourcePicker(appInfo: ApplicationInfo, existingEntries: ArrayList<FabricatedOverlayEntry>? = null) {
+        val frag = ChooseResourcesFragment()
+        val args = Bundle()
+        args.putParcelable("appInfo", appInfo)
+        if (existingEntries != null) {
+            args.putParcelableArrayList("existing_entries", existingEntries)
+        }
+        frag.arguments = args
+
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack(null)
+            .commit()
+
+        title = getString(R.string.resources_select)
+        invalidateOptionsMenu()
+    }
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
         val searchItem = menu.findItem(R.id.action_search)
-        // only show search when the current fragment supports it
-        val frag = supportFragmentManager.findFragmentById(R.id.fragment_container)
+        // only show search when the current top-most visible fragment supports it
+        val frag = supportFragmentManager.fragments.asReversed().firstOrNull { it != null && it.isVisible }
         searchItem.isVisible = frag is Searchable
 
         val sv = searchItem.actionView as? SearchView
@@ -131,7 +152,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun forwardSearchQuery(q: String) {
-        val frag = supportFragmentManager.findFragmentById(R.id.fragment_container)
+        // Find the top-most visible fragment that implements Searchable and forward the query
+        val frag = supportFragmentManager.fragments.asReversed().firstOrNull { it != null && it.isVisible }
         if (frag is Searchable) frag.onSearchQuery(q)
     }
 

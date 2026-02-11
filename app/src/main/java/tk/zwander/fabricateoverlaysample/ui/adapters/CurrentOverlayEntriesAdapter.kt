@@ -1,17 +1,17 @@
 package tk.zwander.fabricateoverlaysample.ui.adapters
 
+import android.content.pm.ApplicationInfo
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.listitem.ListItemViewHolder
-import com.google.android.material.listitem.ListItemLayout
 import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
-import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.ItemCurrentOverlayEntryBinding
 
 class CurrentOverlayEntriesAdapter(
+    private val appInfo: ApplicationInfo,
     private var items: MutableList<FabricatedOverlayEntry>
 ) : RecyclerView.Adapter<CurrentOverlayEntriesAdapter.VH>() {
 
@@ -33,6 +33,8 @@ class CurrentOverlayEntriesAdapter(
         holder.bind(position, items.size)
 
         holder.tvName.text = item.resourceName
+            .replace(appInfo.packageName, "")
+            .trim(':')
         holder.tvValue.text = item.resourceValue.toString()
         holder.ivDelete.setOnClickListener {
             val idx = items.indexOf(item)
@@ -45,8 +47,7 @@ class CurrentOverlayEntriesAdapter(
         }
 
         // Ensure ListItemLayout appearance is updated for this position (if present)
-        val listItemLayout = holder.binding.root.findViewById<ListItemLayout?>(R.id.list_item_layout)
-        listItemLayout?.updateAppearance(position, items.size)
+        holder.binding.listItemLayout.updateAppearance(position, items.size)
     }
 
     override fun getItemCount(): Int = items.size

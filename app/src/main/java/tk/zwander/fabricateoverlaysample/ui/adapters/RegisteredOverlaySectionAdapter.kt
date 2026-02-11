@@ -8,13 +8,12 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.listitem.ListItemViewHolder
-import com.google.android.material.listitem.ListItemLayout
 import tk.zwander.fabricateoverlay.FabricatedOverlay
 import tk.zwander.fabricateoverlay.OverlayAPI
 import tk.zwander.fabricateoverlay.OverlayInfo
 import tk.zwander.fabricateoverlaysample.BuildConfig
 import tk.zwander.fabricateoverlaysample.R
-import tk.zwander.fabricateoverlaysample.databinding.ItemRegisteredHeaderBinding
+import tk.zwander.fabricateoverlaysample.databinding.ItemSimpleHeaderBinding
 import tk.zwander.fabricateoverlaysample.databinding.ItemRegisteredOverlayBinding
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showConfirmDialog
@@ -34,7 +33,7 @@ class RegisteredOverlaySectionAdapter(
         private const val TYPE_OVERLAY = 1
     }
 
-    class HeaderVH(val binding: ItemRegisteredHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+    class HeaderVH(val binding: ItemSimpleHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
         val tvTitle: TextView = binding.tvHeader
     }
 
@@ -55,7 +54,7 @@ class RegisteredOverlaySectionAdapter(
         return when (viewType) {
             TYPE_HEADER -> {
                 HeaderVH(
-                    ItemRegisteredHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+                    ItemSimpleHeaderBinding.inflate(LayoutInflater.from(parent.context), parent, false)
                 )
             }
             else -> {
@@ -134,14 +133,6 @@ class RegisteredOverlaySectionAdapter(
                             }
                         }
                     }
-                }
-
-                // Ensure ListItemLayout appearance is updated for this position (if present)
-                val listItemLayout = h.binding.root.findViewById<ListItemLayout?>(R.id.list_item_layout)
-                if (sectionCount > 0 && sectionPosition >= 0) {
-                    listItemLayout?.updateAppearance(sectionPosition, sectionCount)
-                } else {
-                    listItemLayout?.updateAppearance(position, items.size)
                 }
             }
         }

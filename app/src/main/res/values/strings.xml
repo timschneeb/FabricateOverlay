@@ -11,6 +11,7 @@
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="resources">Resources</string>
+    <string name="resources_select">Select resources</string>
     <string name="enabled">Enabled</string>
     <string name="search">Search</string>
     <string name="overlays">Overlays</string>
@@ -28,4 +29,6 @@
     <string name="missing_permissions">Missing permissions</string>
     <string name="error">Error</string>
     <string name="delete_overlay">Delete overlay?</string>
+    <string name="confirm">Confirm</string>
+    <string name="filter">Filter</string>
 </resources>

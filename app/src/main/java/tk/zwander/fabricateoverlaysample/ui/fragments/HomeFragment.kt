@@ -31,7 +31,7 @@ class HomeFragment : Fragment() {
 
         binding.rvRegisteredOverlays.apply {
             layoutManager = LinearLayoutManager(requireContext())
-             adapter = RegisteredOverlaySectionAdapter(mutableListOf()) {
+            adapter = RegisteredOverlaySectionAdapter(mutableListOf()) {
                 loadOverlays(true)
             }.also {
                 this@HomeFragment.adapter = it
@@ -70,26 +70,37 @@ class HomeFragment : Fragment() {
         binding.progressLoading.visibility = View.VISIBLE
 
         OverlayAPI.getInstance(requireContext()) { api ->
-            // Use the viewLifecycleOwner's lifecycleScope so the coroutine is cancelled when the view is destroyed.
-            viewLifecycleOwner.lifecycleScope.launch {
-                val grouped = withContext(Dispatchers.IO) {
-                    api.getAllOverlays(-2 /* UserHandle.USER_CURRENT */).mapNotNull { (key, value) ->
-                        val filtered = value.filter { item -> item.isFabricated && item.overlayName?.contains(requireContext().packageName) == true }
-                        if (filtered.isEmpty()) null else (key to filtered)
-                    }.toMap().toSortedMap { o1, o2 -> o1.compareTo(o2, true) }
-                }
+            try {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val grouped = withContext(Dispatchers.IO) {
+                        api.getAllOverlays(-2 /* UserHandle.USER_CURRENT */)
+                            .mapNotNull { (key, value) ->
+                                val filtered = value.filter { item ->
+                                    item.isFabricated && item.overlayName?.contains(requireContext().packageName) == true
+                                }
+                                if (filtered.isEmpty()) null else (key to filtered)
+                            }.toMap().toSortedMap { o1, o2 -> o1.compareTo(o2, true) }
+                    }
 
-                val merged = ArrayList<RegisteredListItem>()
-                grouped.forEach { (pkg, list) ->
-                    merged.add(RegisteredListItem.Header(pkg))
-                    list.sortedBy { it.overlayName }.forEach { info ->
-                        merged.add(RegisteredListItem.Overlay(info))
+                    val merged = ArrayList<RegisteredListItem>()
+                    grouped.forEach { (pkg, list) ->
+                        merged.add(RegisteredListItem.Header(pkg))
+                        list.sortedBy { it.overlayName }.forEach { info ->
+                            merged.add(RegisteredListItem.Overlay(info))
+                        }
+                    }
+
+                    cachedItems = merged
+                    adapter.update(merged)
+
+                    binding.root.post {
+                        binding.progressLoading.visibility = View.GONE
                     }
                 }
-
-                cachedItems = merged
-                adapter.update(merged)
-
+            }
+            catch (e: IllegalStateException) {
+                // This can occur if the fragment is destroyed while loading overlays
+                e.printStackTrace()
                 binding.root.post {
                     binding.progressLoading.visibility = View.GONE
                 }
