@@ -16,8 +16,8 @@ import tk.zwander.fabricateoverlaysample.BuildConfig
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.ItemRegisteredHeaderBinding
 import tk.zwander.fabricateoverlaysample.databinding.ItemRegisteredOverlayBinding
-import tk.zwander.fabricateoverlaysample.ui.elements.dialogs.RemoveOverlayDialogView
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
+import tk.zwander.fabricateoverlaysample.util.showConfirmDialog
 
 sealed class RegisteredListItem {
     data class Header(val title: String) : RegisteredListItem()
@@ -25,8 +25,8 @@ sealed class RegisteredListItem {
 }
 
 class RegisteredOverlaySectionAdapter(
-    private var items: List<RegisteredListItem>,
-    private val onChange: () -> Unit
+    private var items: MutableList<RegisteredListItem>,
+    private val onRemoved: () -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -96,13 +96,17 @@ class RegisteredOverlaySectionAdapter(
                 h.itemView.setOnClickListener {
                     h.itemView.context.ensureHasOverlayPermission {
                         OverlayAPI.getInstance(h.itemView.context) { api ->
-                            api.setEnabled(
-                                FabricatedOverlay.generateOverlayIdentifier(
-                                    info.overlayName,
-                                    info.packageName
-                                ), !info.isEnabled, 0
+                            val overlayId = FabricatedOverlay.generateOverlayIdentifier(
+                                info.overlayName,
+                                info.packageName
                             )
-                            onChange()
+
+                            api.setEnabled(overlayId, !info.isEnabled, 0)
+
+                            items[position] = RegisteredListItem.Overlay(
+                                api.getOverlayInfoByIdentifier(overlayId, 0)
+                            )
+                            notifyItemChanged(position)
                         }
                     }
                 }
@@ -113,7 +117,23 @@ class RegisteredOverlaySectionAdapter(
                 }
 
                 h.ivDelete.setOnClickListener {
-                    RemoveOverlayDialogView.show(h.itemView.context, info) { onChange() }
+                    val ctx = h.itemView.context
+                    ctx.ensureHasOverlayPermission {
+                        ctx.showConfirmDialog(
+                            R.string.delete_overlay,
+                            R.string.delete_confirmation
+                        ) {
+                            OverlayAPI.getInstance(ctx) { api ->
+                                api.unregisterFabricatedOverlay(
+                                    FabricatedOverlay.generateOverlayIdentifier(
+                                        info.overlayName,
+                                        OverlayAPI.servicePackage ?: "com.android.shell"
+                                    )
+                                )
+                                onRemoved()
+                            }
+                        }
+                    }
                 }
 
                 // Ensure ListItemLayout appearance is updated for this position (if present)
@@ -131,7 +151,7 @@ class RegisteredOverlaySectionAdapter(
 
     @SuppressLint("NotifyDataSetChanged")
     fun update(newItems: List<RegisteredListItem>) {
-        items = newItems
+        items = newItems.toMutableList()
         notifyDataSetChanged()
     }
 

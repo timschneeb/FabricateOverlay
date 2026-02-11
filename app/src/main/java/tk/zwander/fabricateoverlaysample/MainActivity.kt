@@ -1,29 +1,24 @@
 package tk.zwander.fabricateoverlaysample
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.text.method.LinkMovementMethod
 import android.view.Menu
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import org.lsposed.hiddenapibypass.HiddenApiBypass
-import tk.zwander.fabricateoverlay.ShizukuUtils
-import com.google.android.material.appbar.MaterialToolbar
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
+import org.lsposed.hiddenapibypass.HiddenApiBypass
+import tk.zwander.fabricateoverlay.ShizukuUtils
+import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
 import tk.zwander.fabricateoverlaysample.ui.fragments.AppListFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.CurrentOverlayEntriesFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.HomeFragment
-import androidx.appcompat.widget.SearchView
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
-import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
+import tk.zwander.fabricateoverlaysample.util.showAlert
 
 @SuppressLint("PrivateApi")
 class MainActivity : AppCompatActivity() {
@@ -53,20 +48,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showShizukuDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setMessage(R.string.shizuku_not_set_up)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                finish()
-            }
-            .setCancelable(false)
-            .create()
-            .apply {
-                setOnShowListener {
-                    findViewById<TextView>(Class.forName("com.android.internal.R\$id").getField("message").getInt(null))
-                        ?.movementMethod = LinkMovementMethod()
-                }
-            }
-            .show()
+        showAlert(R.string.error, R.string.shizuku_not_set_up) {
+            finish()
+        }
     }
 
     private fun init() {

@@ -5,22 +5,19 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import tk.zwander.fabricateoverlay.OverlayAPI
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.FragmentHomeBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.RegisteredListItem
 import tk.zwander.fabricateoverlaysample.ui.adapters.RegisteredOverlaySectionAdapter
-import tk.zwander.fabricateoverlay.OverlayAPI
+import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 
 class HomeFragment : Fragment() {
-    private val job = Job()
-    private val scope = CoroutineScope(Dispatchers.Main + job)
     private lateinit var binding: FragmentHomeBinding
     private lateinit var adapter: RegisteredOverlaySectionAdapter
     private var cachedItems: List<RegisteredListItem> = listOf()
@@ -34,9 +31,12 @@ class HomeFragment : Fragment() {
 
         binding.rvRegisteredOverlays.apply {
             layoutManager = LinearLayoutManager(requireContext())
-            adapter = RegisteredOverlaySectionAdapter(emptyList()) { loadOverlays(true) }.also {
+             adapter = RegisteredOverlaySectionAdapter(mutableListOf()) {
+                loadOverlays(true)
+            }.also {
                 this@HomeFragment.adapter = it
             }
+            addItemDecoration(MarginItemDecoration())
         }
 
         binding.fabApps.setOnClickListener {
@@ -48,11 +48,8 @@ class HomeFragment : Fragment() {
             adapter.update(cachedItems)
             binding.progressLoading.visibility = View.GONE
         } else {
-            binding.progressLoading.visibility = View.VISIBLE
             binding.root.post {
-                loadOverlays(false) {
-                    binding.progressLoading.visibility = View.GONE
-                }
+                loadOverlays(false)
             }
         }
 
@@ -63,19 +60,18 @@ class HomeFragment : Fragment() {
         super.onResume()
         activity?.title = getString(R.string.overlays)
         // Always reload overlays when resuming to ensure newly created overlays are displayed
-        binding.progressLoading.visibility = View.VISIBLE
-        loadOverlays(true) {
-            binding.progressLoading.visibility = View.GONE
-        }
+        loadOverlays(true)
     }
 
-    private fun loadOverlays(forceReload: Boolean, onLoaded: (() -> Unit)? = null) {
-        if (!forceReload && cachedItems.isNotEmpty()) return
+    private fun loadOverlays(forceReload: Boolean) {
+        if (!forceReload && cachedItems.isNotEmpty())
+            return
 
-        adapter.update(emptyList())
+        binding.progressLoading.visibility = View.VISIBLE
 
         OverlayAPI.getInstance(requireContext()) { api ->
-            scope.launch {
+            // Use the viewLifecycleOwner's lifecycleScope so the coroutine is cancelled when the view is destroyed.
+            viewLifecycleOwner.lifecycleScope.launch {
                 val grouped = withContext(Dispatchers.IO) {
                     api.getAllOverlays(-2 /* UserHandle.USER_CURRENT */).mapNotNull { (key, value) ->
                         val filtered = value.filter { item -> item.isFabricated && item.overlayName?.contains(requireContext().packageName) == true }
@@ -93,7 +89,10 @@ class HomeFragment : Fragment() {
 
                 cachedItems = merged
                 adapter.update(merged)
-                onLoaded?.invoke()
+
+                binding.root.post {
+                    binding.progressLoading.visibility = View.GONE
+                }
             }
         }
     }
@@ -101,6 +100,5 @@ class HomeFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         binding.rvRegisteredOverlays.adapter = null
-        scope.cancel()
     }
 }

@@ -28,7 +28,7 @@ class AppListFragment : Fragment(), MainActivity.Searchable {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         binding = FragmentAppListBinding.inflate(inflater, container, false)
 
         binding.rvApps.apply {

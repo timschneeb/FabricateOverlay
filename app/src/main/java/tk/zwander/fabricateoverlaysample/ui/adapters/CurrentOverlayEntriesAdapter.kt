@@ -18,7 +18,6 @@ class CurrentOverlayEntriesAdapter(
     class VH(val binding: ItemCurrentOverlayEntryBinding) : ListItemViewHolder(binding.root) {
         val ivDelete: MaterialButton = binding.ivDelete
         val tvName: TextView = binding.tvName
-        val tvType: TextView = binding.tvType
         val tvValue: TextView = binding.tvValue
     }
 
@@ -34,9 +33,7 @@ class CurrentOverlayEntriesAdapter(
         holder.bind(position, items.size)
 
         holder.tvName.text = item.resourceName
-        holder.tvType.text = item.resourceType.toString()
         holder.tvValue.text = item.resourceValue.toString()
-        holder.ivDelete.setIconResource(android.R.drawable.ic_menu_delete)
         holder.ivDelete.setOnClickListener {
             val idx = items.indexOf(item)
             if (idx >= 0) {
