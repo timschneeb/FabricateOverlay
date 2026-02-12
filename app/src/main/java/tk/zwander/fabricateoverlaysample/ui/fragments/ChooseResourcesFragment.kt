@@ -1,7 +1,6 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
 import android.content.pm.ApplicationInfo
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
@@ -31,6 +30,8 @@ import tk.zwander.fabricateoverlaysample.ui.adapters.ResourceListItem
 import tk.zwander.fabricateoverlaysample.ui.adapters.SelectableResourceItemAdapter
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 import tk.zwander.fabricateoverlaysample.util.getAppResources
+import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
+import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
 
 class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivity.TitleProvider {
     private lateinit var binding: FragmentResourceSelectionBinding
@@ -70,16 +71,11 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
         }
 
         // If the caller passed ApplicationInfo via arguments, load resources
-        val info: ApplicationInfo? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requireArguments().getParcelable("appInfo", ApplicationInfo::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            requireArguments().getParcelable("appInfo") as? ApplicationInfo
-        }
+        val info = requireArguments().getParcelableCompat<ApplicationInfo>("appInfo")
 
         // Read any existing entries to pre-populate selection
-        @Suppress("UNCHECKED_CAST")
-        existingEntries = (requireArguments().getParcelableArrayList<FabricatedOverlayEntry>("existing_entries") as? ArrayList<FabricatedOverlayEntry>)
+        existingEntries = requireArguments()
+            .getParcelableArrayListCompat<FabricatedOverlayEntry>("existing_entries")
             ?: listOf()
 
         info?.let { loadResources(it) }
@@ -196,9 +192,7 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
         }
     }
 
-    override fun toolbarTitle(): CharSequence? {
-        return requireContext().getString(R.string.resources_select)
-    }
+    override fun toolbarTitle() = requireContext().getString(R.string.resources_select)
 
     companion object {
         const val KEY_SELECTED_ENTRIES = "selected_entries"

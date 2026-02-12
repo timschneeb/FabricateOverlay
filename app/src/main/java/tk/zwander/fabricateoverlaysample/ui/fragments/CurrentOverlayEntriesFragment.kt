@@ -1,11 +1,13 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
+import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import tk.zwander.fabricateoverlay.FabricatedOverlay
 import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
@@ -15,6 +17,8 @@ import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.FragmentCurrentOverlaysBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
+import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
+import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
 import tk.zwander.fabricateoverlaysample.util.showAlert
 import tk.zwander.fabricateoverlaysample.util.showInputAlert
 
@@ -25,57 +29,43 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
     private lateinit var adapter: CurrentOverlayEntriesAdapter
     private lateinit var binding: FragmentCurrentOverlaysBinding
 
+    @SuppressLint("NotifyDataSetChanged")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Defer fragment result listeners until the view exists (registered in onViewCreated).
-        appInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            requireArguments().getParcelable("appInfo", ApplicationInfo::class.java)!!
-        } else {
-            @Suppress("DEPRECATION")
-            requireArguments().getParcelable("appInfo")!!
-        }
-        // Register result listeners on the fragment lifecycle so they are active while this fragment
-        // exists in the FragmentManager (even when its view is destroyed while a child is on top).
+        appInfo = requireArguments().getParcelableCompat<ApplicationInfo>("appInfo")!!
+
         parentFragmentManager.setFragmentResultListener(ChooseResourcesFragment.KEY_RESOURCES_SELECTED, this) { _, bundle ->
-            val selected = bundle.getParcelableArrayList<FabricatedOverlayEntry>(ChooseResourcesFragment.KEY_SELECTED_ENTRIES)
-            android.util.Log.d("CurrentOverlayEntries", "Received fragment result: selected_entries size=${'$'}{selected?.size}")
-            if (selected != null) {
-                // Build quick lookup maps for full and short names
-                val selectedByFull = selected.associateBy { it.resourceName }
-                val selectedByShort = selected.associateBy { it.resourceName.substringAfterLast('/') }
+            val selected =
+                bundle.getParcelableArrayListCompat<FabricatedOverlayEntry>(ChooseResourcesFragment.KEY_SELECTED_ENTRIES)
+                    ?: return@setFragmentResultListener
 
-                // Use LinkedHashMap to preserve insertion order: first keep existing selected entries
-                // in their original order (if they remain selected), then append any remaining selected
-                // entries in the order the picker returned them. Keys are the full resourceName.
-                val resultMap = LinkedHashMap<String, FabricatedOverlayEntry>()
-
-                // Preserve original order for entries that remain selected (match by full or short name)
-                for (old in entries) {
-                    val fullMatch = selectedByFull[old.resourceName]
-                    if (fullMatch != null) {
-                        resultMap[fullMatch.resourceName] = fullMatch
-                        continue
-                    }
-
-                    val short = old.resourceName.substringAfterLast('/')
-                    val shortMatch = selectedByShort[short]
-                    if (shortMatch != null) {
-                        resultMap[shortMatch.resourceName] = shortMatch
-                    }
+            val resultMap = LinkedHashMap<String, FabricatedOverlayEntry>()
+            for (old in entries) {
+                val fullMatch = selected.associateBy { it.resourceName }[old.resourceName]
+                if (fullMatch != null) {
+                    resultMap[fullMatch.resourceName] = fullMatch
+                    continue
                 }
 
-                // Append remaining selected entries (in picker order), avoiding duplicates
-                for (s in selected) {
-                    if (!resultMap.containsKey(s.resourceName)) {
-                        resultMap[s.resourceName] = s
-                    }
+                val short = old.resourceName.substringAfterLast('/')
+                val shortMatch = selected.associateBy { it.resourceName.substringAfterLast('/') }[short]
+                if (shortMatch != null) {
+                    resultMap[shortMatch.resourceName] = shortMatch
                 }
-
-                // Replace backing list with deduplicated selection
-                entries.clear()
-                entries.addAll(resultMap.values)
-                if (::adapter.isInitialized) adapter.notifyDataSetChanged()
             }
+
+            // Append remaining selected entries (in picker order), avoiding duplicates
+            for (s in selected) {
+                if (!resultMap.containsKey(s.resourceName)) {
+                    resultMap[s.resourceName] = s
+                }
+            }
+
+            // Replace backing list with deduplicated selection
+            entries.clear()
+            entries.addAll(resultMap.values)
+            if (::adapter.isInitialized)
+                adapter.notifyDataSetChanged()
         }
     }
 
@@ -130,8 +120,8 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                                 }
                             )
 
-                            // pop back to main fragment
-                            activity?.supportFragmentManager?.popBackStackImmediate(null, 0)
+                            // return to root fragment
+                            activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                         }
                         catch (e: Exception) {
                             ctx.showAlert(e)
@@ -149,7 +139,5 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
         binding.rvEntries.adapter = null
     }
 
-    override fun toolbarTitle(): CharSequence? {
-        return appInfo.loadLabel(requireContext().packageManager)
-    }
+    override fun toolbarTitle() = appInfo.loadLabel(requireContext().packageManager)
 }
