@@ -12,7 +12,8 @@ import tk.zwander.fabricateoverlaysample.databinding.ItemCurrentOverlayEntryBind
 
 class CurrentOverlayEntriesAdapter(
     private val appInfo: ApplicationInfo,
-    private var items: MutableList<FabricatedOverlayEntry>
+    private var items: MutableList<FabricatedOverlayEntry>,
+    private val onEditRequested: ((position: Int, entry: FabricatedOverlayEntry) -> Unit)? = null
 ) : RecyclerView.Adapter<CurrentOverlayEntriesAdapter.VH>() {
 
     class VH(val binding: ItemCurrentOverlayEntryBinding) : ListItemViewHolder(binding.root) {
@@ -43,6 +44,14 @@ class CurrentOverlayEntriesAdapter(
                 notifyItemRemoved(idx)
                 // update appearance of surrounding items to ensure correct segmented corners
                 notifyItemRangeChanged(0, items.size)
+            }
+        }
+
+        // Tap the item to edit its value (fragment will handle input UI)
+        holder.binding.root.setOnClickListener {
+            val idx = holder.bindingAdapterPosition
+            if (idx != RecyclerView.NO_POSITION) {
+                onEditRequested?.invoke(idx, items[idx])
             }
         }
 

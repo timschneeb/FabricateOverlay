@@ -34,4 +34,6 @@
     <string name="overlay_no_entries">No entries selected</string>
     <string name="overlay_no_entries_summary">Please add at least one resource to create an overlay.</string>
     <string name="filters">Filters</string>
+    <string name="edit_color_hint">Color format: #AARRBBGG</string>
+    <string name="invalid_value">Invalid value</string>
 </resources>

@@ -3,6 +3,7 @@ package tk.zwander.fabricateoverlaysample.ui.fragments
 import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,11 +17,13 @@ import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.FragmentCurrentOverlaysBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
+import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
 import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
 import tk.zwander.fabricateoverlaysample.util.showAlert
 import tk.zwander.fabricateoverlaysample.util.showInputAlert
+import tk.zwander.fabricateoverlaysample.util.toast
 
 class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
     private val entries = mutableListOf<FabricatedOverlayEntry>()
@@ -78,9 +81,12 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
 
         binding.rvEntries.apply {
             layoutManager = LinearLayoutManager(requireContext())
-            adapter = CurrentOverlayEntriesAdapter(appInfo, entries).also {
+            adapter = CurrentOverlayEntriesAdapter(appInfo, entries, onEditRequested = { pos, entry ->
+                handleEditEntry(pos, entry)
+            }).also {
                 this@CurrentOverlayEntriesFragment.adapter = it
             }
+            addItemDecoration(MarginItemDecoration())
         }
 
         binding.btnAdd.setOnClickListener {
@@ -132,6 +138,58 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
         }
 
         return binding.root
+    }
+
+    private fun handleEditEntry(position: Int, entry: FabricatedOverlayEntry) {
+        val ctx = requireContext()
+        val simpleName = entry.resourceName.substringAfterLast('/')
+        when (entry.resourceType) {
+            TypedValue.TYPE_INT_BOOLEAN -> {
+                // Flip boolean value
+                entry.resourceValue = if (entry.resourceValue != 0) 0 else 1
+                adapter.notifyItemChanged(position)
+            }
+            TypedValue.TYPE_INT_COLOR_ARGB8 -> {
+                // Color as hex string
+                val hex = String.format("#%08X", entry.resourceValue)
+                ctx.showInputAlert(layoutInflater, simpleName, getString(R.string.edit_color_hint), hex) { input ->
+                    // Parse hex input (allow # prefix)
+                    val cleaned = input.trim().removePrefix("#")
+                    try {
+                        val value = cleaned.toLong(16).toInt()
+                        entry.resourceValue = value
+                        adapter.notifyItemChanged(position)
+                    } catch (e: Exception) {
+                        ctx.showAlert(e)
+                    }
+                }
+            }
+            TypedValue.TYPE_INT_DEC, TypedValue.TYPE_DIMENSION -> {
+                // Numeric input
+                ctx.showInputAlert(layoutInflater, simpleName, null, entry.resourceValue.toString(), true) { input ->
+                    val num = input.toIntOrNull()
+                    if (num == null) {
+                        ctx.toast(getString(R.string.invalid_value))
+                    } else {
+                        entry.resourceValue = num
+                        adapter.notifyItemChanged(position)
+                    }
+                }
+            }
+            else -> {
+                // Fallback: open simple text input to accept integer
+                // TODO
+                ctx.showInputAlert(layoutInflater, simpleName, null, entry.resourceValue.toString(), true) { input ->
+                    val num = input.toIntOrNull()
+                    if (num == null) {
+                        ctx.toast(getString(R.string.invalid_value))
+                    } else {
+                        entry.resourceValue = num
+                        adapter.notifyItemChanged(position)
+                    }
+                }
+            }
+        }
     }
 
     override fun onDestroyView() {
