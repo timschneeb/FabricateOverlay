@@ -46,18 +46,14 @@ class AppListFragment : SearchableBaseFragment<AppListViewModel>(AppListViewMode
         // If we already loaded apps in this fragment instance, don't show the spinner
         if (allApps.isNotEmpty()) {
             binding.progressApps.visibility = View.GONE
-            adapter.update(allApps)
+            updateList()
         } else {
             binding.progressApps.visibility = View.VISIBLE
         }
 
         val vm = ViewModelProvider(requireActivity())[AppListViewModel::class.java]
         vm.searchQueryLive.observe(viewLifecycleOwner) {
-            val filtered = if (it.isNullOrEmpty())
-                allApps
-            else
-                allApps.filter { app -> app.label.contains(it, true) || app.info.packageName.contains(it, true) }
-            adapter.update(filtered)
+            updateList()
         }
 
         val ctx = requireContext()
@@ -84,12 +80,22 @@ class AppListFragment : SearchableBaseFragment<AppListViewModel>(AppListViewMode
 
                 withContext(Dispatchers.Main) {
                     binding.progressApps.visibility = View.GONE
-                    adapter.update(apps)
+                    updateList()
                 }
             }
         }
 
         return binding.root
+    }
+
+    private fun updateList() {
+        val query = ViewModelProvider(requireActivity())[AppListViewModel::class.java]
+            .searchQueryLive.value
+        val filtered = if (query.isNullOrEmpty())
+            allApps
+        else
+            allApps.filter { app -> app.label.contains(query, true) || app.info.packageName.contains(query, true) }
+        adapter.update(filtered)
     }
 
     override fun onDestroyView() {

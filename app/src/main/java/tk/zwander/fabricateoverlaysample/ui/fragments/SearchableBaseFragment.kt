@@ -15,10 +15,6 @@ import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.ui.model.SearchViewModel
 import kotlin.reflect.KClass
 
-/**
- * Base fragment that wires up a SearchView action into the toolbar via a MenuProvider.
- * Subclasses should call [setupSearchMenu] (usually from onViewCreated) to attach the menu.
- */
 abstract class SearchableBaseFragment<T : SearchViewModel>(
     val viewModelClass: KClass<T>
 ) : Fragment() {
@@ -36,20 +32,44 @@ abstract class SearchableBaseFragment<T : SearchViewModel>(
             override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
                 menuInflater.inflate(R.menu.menu_search, menu)
                 val searchItem = menu.findItem(R.id.action_search)
-                (searchItem.actionView as SearchView).apply {
-                    setQuery(vm.searchQueryLive.value ?: "", false)
-                    setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                        override fun onQueryTextSubmit(query: String?): Boolean {
-                            vm.searchQueryLive.value = query ?: ""
-                            return true
-                        }
+                val searchView = (searchItem.actionView as SearchView)
 
-                        override fun onQueryTextChange(newText: String?): Boolean {
-                            vm.searchQueryLive.value = newText ?: ""
-                            return true
-                        }
-                    })
+                // Keep the search query in sync and restore previous query
+                val currentQuery = vm.searchQueryLive.value ?: ""
+                searchView.setQuery(currentQuery, false)
+
+                vm.searchQueryLive.observe(viewLifecycleOwner) { q ->
+                    val text = q ?: ""
+                    if (searchView.query.toString() != text) {
+                        searchView.setQuery(text, false)
+                    }
                 }
+
+                // If there's an existing query, ensure the search is expanded so it stays visible
+                if (currentQuery.isNotEmpty()) {
+                    searchItem.expandActionView()
+                    searchView.isIconified = false
+                    searchView.post {
+                        // Make sure text is present after expansion
+                        val text = vm.searchQueryLive.value ?: ""
+                        if (searchView.query.toString() != text) {
+                            searchView.setQuery(text, false)
+                        }
+                        searchView.requestFocus()
+                    }
+                }
+
+                searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                    override fun onQueryTextSubmit(query: String?): Boolean {
+                        vm.searchQueryLive.value = query ?: ""
+                        return true
+                    }
+
+                    override fun onQueryTextChange(newText: String?): Boolean {
+                        vm.searchQueryLive.value = newText ?: ""
+                        return true
+                    }
+                })
             }
 
             override fun onMenuItemSelected(menuItem: MenuItem) = false

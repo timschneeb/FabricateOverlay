@@ -15,7 +15,9 @@ sealed class ResourceListItem {
 }
 
 class SelectableResourceItemAdapter(
-    private val onSelectChanged: (AvailableResourceItemData, Boolean) -> Unit
+    private val onSelectChanged: (AvailableResourceItemData, Boolean) -> Unit,
+    // Optional callback to notify when expanded set changes (headerTitle, isExpanded)
+    private val onHeaderToggled: ((String, Boolean) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     // Keep the full flattened list (headers + items), and compute a visible subset
@@ -37,6 +39,7 @@ class SelectableResourceItemAdapter(
             binding.root.setOnClickListener {
                 val title = binding.tvHeader.text.toString()
                 toggle(title)
+                onHeaderToggled?.invoke(title, expanded.contains(title))
             }
         }
     }
@@ -187,4 +190,14 @@ class SelectableResourceItemAdapter(
     }
 
     fun getSelected(): Set<AvailableResourceItemData> = selected.toSet()
+
+    // Persist/restore expanded headers
+    fun setExpandedHeaders(headers: Set<String>) {
+        expanded.clear()
+        expanded.addAll(headers)
+        rebuildVisible()
+        notifyDataSetChanged()
+    }
+
+    fun getExpandedHeaders(): Set<String> = expanded.toSet()
 }

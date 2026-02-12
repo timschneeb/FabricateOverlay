@@ -56,9 +56,23 @@ class ChooseResourcesFragment : SearchableBaseFragment<ResourceSelectViewModel>(
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        val vm = ViewModelProvider(requireActivity())[ResourceSelectViewModel::class.java]
         binding = FragmentResourceSelectionBinding.inflate(inflater, container, false)
 
-        val vm = ViewModelProvider(requireActivity())[ResourceSelectViewModel::class.java]
+        // Create adapter and update ViewModel when headers are toggled so we can persist expansion state
+        adapter = SelectableResourceItemAdapter({ item, checked ->
+            if (checked) selectedItems.add(item) else selectedItems.remove(item)
+        }, onHeaderToggled = { header, isExpanded ->
+            if (isExpanded)
+                vm.expandedHeaders.add(header)
+            else
+                vm.expandedHeaders.remove(header)
+            // Persist current scroll as well when header toggles
+            saveScrollStateToVm()
+        })
+        // Initialize adapter's selection from fragment state (empty at start).
+        adapter.setSelected(selectedItems)
+
         // Observe filter and search changes and recompute the adapter contents
         vm.memberFilterLive.observe(viewLifecycleOwner) {
             updateAdapterForCurrentFilters(vm)
@@ -67,11 +81,7 @@ class ChooseResourcesFragment : SearchableBaseFragment<ResourceSelectViewModel>(
             updateAdapterForCurrentFilters(vm)
         }
 
-        adapter = SelectableResourceItemAdapter { item, checked ->
-            if (checked) selectedItems.add(item) else selectedItems.remove(item)
-        }
-        // Initialize adapter's selection from fragment state (empty at start).
-        adapter.setSelected(selectedItems)
+        updateAdapterForCurrentFilters(vm)
 
         binding.rv.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -200,14 +210,32 @@ class ChooseResourcesFragment : SearchableBaseFragment<ResourceSelectViewModel>(
                 // Apply current filters/search (ViewModel will update observers when changed)
                 val mainVm = ViewModelProvider(requireActivity())[ResourceSelectViewModel::class.java]
                 updateAdapterForCurrentFilters(mainVm)
+
+                // Restore expanded headers state from ViewModel
+                adapter.setExpandedHeaders(mainVm.expandedHeaders)
+
+                // Restore scroll position if we have one
+                mainVm.scrollStateLive.value?.let { (index, offset) ->
+                    val lm = binding.rv.layoutManager as? LinearLayoutManager
+                    lm?.scrollToPositionWithOffset(index, offset)
+                }
             }
         }
     }
 
+    private fun saveScrollStateToVm() {
+        val lm = binding.rv.layoutManager as? LinearLayoutManager ?: return
+        val first = lm.findFirstVisibleItemPosition()
+        val child = binding.rv.getChildAt(0) ?: return
+        val offset = child.top - binding.rv.paddingTop
+        val vm = ViewModelProvider(requireActivity())[ResourceSelectViewModel::class.java]
+        vm.scrollStateLive.value = Pair(first, offset)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        // If the fragment is being removed (user navigated away) and results haven't been posted,
-        // post them so the parent receives the final selection. Ignore configuration changes.
+        // Persist scroll state when fragment is being destroyed (config changes are ignored)
+        saveScrollStateToVm()
         if (isRemoving && !requireActivity().isChangingConfigurations) {
             postSelections()
         }
