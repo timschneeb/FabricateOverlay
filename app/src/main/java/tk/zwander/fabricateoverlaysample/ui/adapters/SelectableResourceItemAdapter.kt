@@ -81,7 +81,6 @@ class SelectableResourceItemAdapter(
                 h.binding.tvName.text = listItem.data.resourceName
                 h.binding.tvVal.text = listItem.data.values.joinToString(", ")
                 h.binding.root.setOnClickListener {
-                    Log.e("ResourcePicker", "Item clicked: ${listItem.data.resourceName}")
                     h.binding.cbSelect.performClick()
                 }
 

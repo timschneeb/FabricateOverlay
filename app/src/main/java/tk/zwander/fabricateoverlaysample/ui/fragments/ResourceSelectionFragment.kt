@@ -117,14 +117,14 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
         val filter = vm.memberFilter
         // Treat prefixes marked EXCLUDE as highest priority: if any exclude prefix matches, reject.
         val excluded = filter.filterValues { it == TriState.EXCLUDE }.keys
-        if (excluded.any { prefixes -> prefixes.prefixes.any { p -> item.name.startsWith(p, ignoreCase = true) } }) {
+        if (excluded.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains("/$p") } }) {
             return false
         }
 
         // If there are any INCLUDE prefixes, only include items that match at least one INCLUDE prefix.
         val included = filter.filterValues { it == TriState.INCLUDE }.keys
         if (included.isNotEmpty()) {
-            return included.any { prefixes -> prefixes.prefixes.any { p -> item.name.startsWith(p, ignoreCase = true) } }
+            return included.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains("/$p") } }
         }
 
         // Otherwise, include by default.
@@ -136,7 +136,7 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
         return items.filter { item ->
             if (!passesPrefixFilter(item, vm)) return@filter false
             if (!q.isNullOrBlank()) {
-                return@filter item.resourceName.lowercase().startsWith(q)
+                return@filter item.resourceName.lowercase().contains(q)
             }
             true
         }
