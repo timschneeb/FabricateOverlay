@@ -12,6 +12,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.core.view.isVisible
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -180,7 +181,24 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
             override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
                 return when (menuItem.itemId) {
                     R.id.action_filter -> {
-                        FilterBottomSheetFragment().show(parentFragmentManager, "filters")
+                        // Workaround: fix query clear when bottom sheet closes
+                        suppressQueryChange = true
+
+                        // Show the bottom sheet and clear suppressQueryChange when it is dismissed.
+                        val frag = FilterBottomSheetFragment()
+                        val fm = parentFragmentManager
+                        val cb = object : FragmentManager.FragmentLifecycleCallbacks() {
+                            override fun onFragmentDestroyed(fm: FragmentManager, f: androidx.fragment.app.Fragment) {
+                                if (f === frag) {
+                                    // TODO delay by 100ms
+                                    suppressQueryChange = false
+                                    fm.unregisterFragmentLifecycleCallbacks(this)
+                                }
+                            }
+                        }
+                        fm.registerFragmentLifecycleCallbacks(cb, false)
+                        frag.show(fm, "filters")
+
                         true
                     }
                     else -> false

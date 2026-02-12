@@ -20,6 +20,8 @@ abstract class SearchableBaseFragment<T : SearchViewModel>(
     val viewModelClass: KClass<T>
 ) : Fragment() {
 
+    protected var suppressQueryChange: Boolean = false
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupSearchMenu()
@@ -38,9 +40,6 @@ abstract class SearchableBaseFragment<T : SearchViewModel>(
                 // Keep the search query in sync and restore previous query
                 val currentQuery = vm.searchQueryLive.value ?: ""
                 searchView.setQuery(currentQuery, false)
-                searchView.isSubmitButtonEnabled = true
-
-                Log.e("SearchableBaseFragment", "Restoring search query: '$currentQuery'")
 
                 vm.searchQueryLive.observe(viewLifecycleOwner) { q ->
                     val text = q ?: ""
@@ -70,7 +69,10 @@ abstract class SearchableBaseFragment<T : SearchViewModel>(
                     }
 
                     override fun onQueryTextChange(newText: String?): Boolean {
-                        return false
+                        if(!suppressQueryChange) {
+                            vm.searchQueryLive.value = newText ?: ""
+                        }
+                        return !suppressQueryChange
                     }
                 })
             }
