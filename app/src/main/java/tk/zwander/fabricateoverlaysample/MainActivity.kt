@@ -3,11 +3,9 @@ package tk.zwander.fabricateoverlaysample
 import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
-import android.view.Menu
 import android.view.ViewGroup
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SearchView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
@@ -84,20 +82,17 @@ class MainActivity : AppCompatActivity() {
 
         supportFragmentManager.addOnBackStackChangedListener {
             supportActionBar?.setDisplayHomeAsUpEnabled(supportFragmentManager.backStackEntryCount > 0)
-            invalidateOptionsMenu()
-            // Keep the action bar title in sync with the current top-most fragment
             updateTitleFromTopFragment()
         }
 
-        // Try to set the title from the currently visible fragment on startup
+        supportActionBar?.setDisplayHomeAsUpEnabled(supportFragmentManager.backStackEntryCount > 0)
         updateTitleFromTopFragment()
-
         ensureHasOverlayPermission()
     }
 
     private fun updateTitleFromTopFragment() {
-        // Find the top-most visible fragment and ask it for a title if it provides one
-        val frag = supportFragmentManager.fragments.asReversed().firstOrNull { it != null }
+        // Find the top-most visible fragment that is hosted in the main container and ask it for a title
+        val frag = supportFragmentManager.fragments.asReversed().firstOrNull { it != null && it.id == R.id.fragment_container }
         title = if (frag is TitleProvider) {
             frag.toolbarTitle()
         } else {
@@ -112,7 +107,6 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, AppListFragment())
             .addToBackStack(null)
             .commit()
-        invalidateOptionsMenu()
     }
 
     fun navigateToCurrentOverlays(appInfo: ApplicationInfo) {
@@ -141,36 +135,6 @@ class MainActivity : AppCompatActivity() {
             .replace(R.id.fragment_container, frag)
             .addToBackStack(null)
             .commit()
-
-        invalidateOptionsMenu()
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        val searchItem = menu.findItem(R.id.action_search)
-        // only show search when the current top-most visible fragment supports it
-        val frag = supportFragmentManager.fragments.asReversed().firstOrNull { it != null && it.isVisible }
-        searchItem.isVisible = frag is Searchable
-
-        val sv = searchItem.actionView as? SearchView
-        sv?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                forwardSearchQuery(query ?: "")
-                return true
-            }
-
-            override fun onQueryTextChange(newText: String?): Boolean {
-                forwardSearchQuery(newText ?: "")
-                return true
-            }
-        })
-        return true
-    }
-
-    private fun forwardSearchQuery(q: String) {
-        // Find the top-most visible fragment that implements Searchable and forward the query
-        val frag = supportFragmentManager.fragments.asReversed().firstOrNull { it != null && it.isVisible }
-        if (frag is Searchable) frag.onSearchQuery(q)
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -179,9 +143,5 @@ class MainActivity : AppCompatActivity() {
             return true
         }
         return super.onSupportNavigateUp()
-    }
-
-    interface Searchable {
-        fun onSearchQuery(q: String)
     }
 }

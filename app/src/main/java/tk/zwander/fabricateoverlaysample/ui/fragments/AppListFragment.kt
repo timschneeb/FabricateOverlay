@@ -4,7 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,8 +17,9 @@ import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.data.LoadedApplicationInfo
 import tk.zwander.fabricateoverlaysample.databinding.FragmentAppListBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.AppListAdapter
+import tk.zwander.fabricateoverlaysample.ui.model.AppListViewModel
 
-class AppListFragment : Fragment(), MainActivity.Searchable, MainActivity.TitleProvider {
+class AppListFragment : SearchableBaseFragment<AppListViewModel>(AppListViewModel::class), MainActivity.TitleProvider {
     private val job = Job()
     private val scope = CoroutineScope(Dispatchers.Main + job)
     private var allApps: List<LoadedApplicationInfo> = listOf()
@@ -48,6 +49,15 @@ class AppListFragment : Fragment(), MainActivity.Searchable, MainActivity.TitleP
             adapter.update(allApps)
         } else {
             binding.progressApps.visibility = View.VISIBLE
+        }
+
+        val vm = ViewModelProvider(requireActivity())[AppListViewModel::class.java]
+        vm.searchQueryLive.observe(viewLifecycleOwner) {
+            val filtered = if (it.isNullOrEmpty())
+                allApps
+            else
+                allApps.filter { app -> app.label.contains(it, true) || app.info.packageName.contains(it, true) }
+            adapter.update(filtered)
         }
 
         val ctx = requireContext()
@@ -80,11 +90,6 @@ class AppListFragment : Fragment(), MainActivity.Searchable, MainActivity.TitleP
         }
 
         return binding.root
-    }
-
-    override fun onSearchQuery(q: String) {
-        val filtered = if (q.isEmpty()) allApps else allApps.filter { it.label.contains(q, true) || it.info.packageName.contains(q, true) }
-        adapter.update(filtered)
     }
 
     override fun onDestroyView() {

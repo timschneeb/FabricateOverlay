@@ -12,8 +12,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.core.view.isVisible
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -25,15 +25,17 @@ import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
 import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
+import tk.zwander.fabricateoverlaysample.data.TriState
 import tk.zwander.fabricateoverlaysample.databinding.FragmentResourceSelectionBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.ResourceListItem
 import tk.zwander.fabricateoverlaysample.ui.adapters.SelectableResourceItemAdapter
+import tk.zwander.fabricateoverlaysample.ui.model.ResourceSelectViewModel
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 import tk.zwander.fabricateoverlaysample.util.getAppResources
 import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
 import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
 
-class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivity.TitleProvider {
+class ChooseResourcesFragment : SearchableBaseFragment<ResourceSelectViewModel>(ResourceSelectViewModel::class), MainActivity.TitleProvider {
     private lateinit var binding: FragmentResourceSelectionBinding
     private lateinit var adapter: SelectableResourceItemAdapter
     private var allResourcesByType: Map<String, List<AvailableResourceItemData>> = mapOf()
@@ -55,6 +57,15 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         binding = FragmentResourceSelectionBinding.inflate(inflater, container, false)
+
+        val vm = ViewModelProvider(requireActivity())[ResourceSelectViewModel::class.java]
+        // Observe filter and search changes and recompute the adapter contents
+        vm.memberFilterLive.observe(viewLifecycleOwner) {
+            updateAdapterForCurrentFilters(vm)
+        }
+        vm.searchQueryLive.observe(viewLifecycleOwner) {
+            updateAdapterForCurrentFilters(vm)
+        }
 
         adapter = SelectableResourceItemAdapter { item, checked ->
             if (checked) selectedItems.add(item) else selectedItems.remove(item)
@@ -78,8 +89,56 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
             .getParcelableArrayListCompat<FabricatedOverlayEntry>("existing_entries")
             ?: listOf()
 
-        info?.let { loadResources(it) }
+        info?.let(::loadResources)
         return binding.root
+    }
+
+    // Returns true if the item passes the prefix-based filter in vm
+    private fun passesPrefixFilter(item: AvailableResourceItemData, vm: ResourceSelectViewModel): Boolean {
+        val filter = vm.memberFilter
+        // Treat prefixes marked EXCLUDE as highest priority: if any exclude prefix matches, reject.
+        val excluded = filter.filterValues { it == TriState.EXCLUDE }.keys
+        if (excluded.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains(p, ignoreCase = true) } }) {
+            return false
+        }
+
+        // If there are any INCLUDE prefixes, only include items that match at least one INCLUDE prefix.
+        val included = filter.filterValues { it == TriState.INCLUDE }.keys
+        if (included.isNotEmpty()) {
+            return included.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains(p, ignoreCase = true) } }
+        }
+
+        // Otherwise, include by default.
+        return true
+    }
+
+    private fun applyFilters(items: List<AvailableResourceItemData>, vm: ResourceSelectViewModel): List<AvailableResourceItemData> {
+        val q = vm.searchQueryLive.value?.trim()?.lowercase()
+        return items.filter { item ->
+            if (!passesPrefixFilter(item, vm)) return@filter false
+            if (!q.isNullOrBlank()) {
+                return@filter item.resourceName.lowercase().contains(q)
+            }
+            true
+        }
+    }
+
+    // Rebuild adapter contents using the current filters and search query in vm.
+    private fun updateAdapterForCurrentFilters(vm: ResourceSelectViewModel) {
+        val grouped = linkedMapOf<String, List<AvailableResourceItemData>>()
+        allResourcesByType.forEach { (type, list) ->
+            val filtered = applyFilters(list, vm)
+            if (filtered.isNotEmpty()) grouped[type] = filtered
+        }
+
+        val listItems = ArrayList<ResourceListItem>()
+        grouped.forEach { (type, list) ->
+            listItems.add(ResourceListItem.Header(type))
+            list.forEach { listItems.add(ResourceListItem.Item(it)) }
+        }
+
+        adapter.updateFull(listItems)
+        adapter.setSelected(selectedItems)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -102,7 +161,7 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
             override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
                 return when (menuItem.itemId) {
                     R.id.action_filter -> {
-                        // TODO
+                        FilterBottomSheetFragment().show(parentFragmentManager, "filters")
                         true
                     }
                     else -> false
@@ -113,8 +172,9 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
 
     private fun loadResources(info: ApplicationInfo) {
         binding.progress.isVisible = true
-        val ctx = requireContext()
+        binding.rv.isVisible = false
 
+        val ctx = requireContext()
         lifecycleScope.launch(Dispatchers.IO) {
             val resources = getAppResources(ctx, ApkFile(info.sourceDir))
 
@@ -123,16 +183,11 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
 
             allResourcesByType = resources
 
-            val listItems = ArrayList<ResourceListItem>()
-            resources.forEach { (type, list) ->
-                listItems.add(ResourceListItem.Header(type))
-                list.forEach { item -> listItems.add(ResourceListItem.Item(item)) }
-            }
-
             withContext(Dispatchers.Main) {
                 if (!isAdded) return@withContext
                 binding.progress.isVisible = false
-                adapter.updateFull(listItems)
+                binding.rv.isVisible = true
+
                 // Pre-select items that were already present in `existingEntries`.
                 if (existingEntries.isNotEmpty()) {
                     // existingEntries use FabricatedOverlayEntry.resourceName which is the fully-qualified
@@ -140,47 +195,13 @@ class ChooseResourcesFragment : Fragment(), MainActivity.Searchable, MainActivit
                     val toSelect = flat.filter { f -> existingEntries.any { it.resourceName == f.name && it.resourceType == f.type } }
                     selectedItems.clear()
                     selectedItems.addAll(toSelect)
-                    adapter.setSelected(selectedItems)
-                } else {
-                    // Make sure adapter reflects any currently selected items (none by default)
-                    adapter.setSelected(selectedItems)
                 }
+
+                // Apply current filters/search (ViewModel will update observers when changed)
+                val mainVm = ViewModelProvider(requireActivity())[ResourceSelectViewModel::class.java]
+                updateAdapterForCurrentFilters(mainVm)
             }
         }
-    }
-
-    /**
-     * Filter the list by query. Host should call this from the ActionBar SearchView.
-     */
-    fun filter(query: String) {
-        val q = query.trim().lowercase()
-        if (q.isEmpty()) {
-            // show all
-            val listItems = ArrayList<ResourceListItem>()
-            allResourcesByType.forEach { (type, list) ->
-                listItems.add(ResourceListItem.Header(type))
-                list.forEach { listItems.add(ResourceListItem.Item(it)) }
-            }
-            adapter.updateFull(listItems)
-            adapter.setSelected(selectedItems)
-            return
-        }
-
-        val filtered = ArrayList<ResourceListItem>()
-        allResourcesByType.forEach { (type, list) ->
-            val matches = list.filter { it.resourceName.lowercase().contains(q) }
-            if (matches.isNotEmpty()) {
-                filtered.add(ResourceListItem.Header(type))
-                matches.forEach { filtered.add(ResourceListItem.Item(it)) }
-            }
-        }
-        adapter.updateFull(filtered)
-        adapter.setSelected(selectedItems)
-    }
-
-    // Called by MainActivity when the action bar SearchView emits text
-    override fun onSearchQuery(q: String) {
-        filter(q)
     }
 
     override fun onDestroy() {
