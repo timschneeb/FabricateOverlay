@@ -34,9 +34,9 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
         super.onCreate(savedInstanceState)
         appInfo = requireArguments().getParcelableCompat<ApplicationInfo>("appInfo")!!
 
-        parentFragmentManager.setFragmentResultListener(ChooseResourcesFragment.KEY_RESOURCES_SELECTED, this) { _, bundle ->
+        parentFragmentManager.setFragmentResultListener(ResourceSelectionFragment.KEY_RESOURCES_SELECTED, this) { _, bundle ->
             val selected =
-                bundle.getParcelableArrayListCompat<FabricatedOverlayEntry>(ChooseResourcesFragment.KEY_SELECTED_ENTRIES)
+                bundle.getParcelableArrayListCompat<FabricatedOverlayEntry>(ResourceSelectionFragment.KEY_SELECTED_ENTRIES)
                     ?: return@setFragmentResultListener
 
             val resultMap = LinkedHashMap<String, FabricatedOverlayEntry>()

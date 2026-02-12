@@ -14,9 +14,9 @@ import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
 import tk.zwander.fabricateoverlay.ShizukuUtils
 import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
 import tk.zwander.fabricateoverlaysample.ui.fragments.AppListFragment
-import tk.zwander.fabricateoverlaysample.ui.fragments.ChooseResourcesFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.CurrentOverlayEntriesFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.HomeFragment
+import tk.zwander.fabricateoverlaysample.ui.fragments.ResourceSelectionFragment
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showAlert
 
@@ -123,7 +123,7 @@ class MainActivity : AppCompatActivity() {
 
     // Navigate to the resources picker for the given app. Optionally pass existing selected entries
     fun navigateToResourcePicker(appInfo: ApplicationInfo, existingEntries: ArrayList<FabricatedOverlayEntry>? = null) {
-        val frag = ChooseResourcesFragment()
+        val frag = ResourceSelectionFragment()
         val args = Bundle()
         args.putParcelable("appInfo", appInfo)
         if (existingEntries != null) {

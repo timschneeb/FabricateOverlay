@@ -35,7 +35,7 @@ import tk.zwander.fabricateoverlaysample.util.getAppResources
 import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
 import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
 
-class ChooseResourcesFragment : SearchableBaseFragment<ResourceSelectViewModel>(ResourceSelectViewModel::class), MainActivity.TitleProvider {
+class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel>(ResourceSelectViewModel::class), MainActivity.TitleProvider {
     private lateinit var binding: FragmentResourceSelectionBinding
     private lateinit var adapter: SelectableResourceItemAdapter
     private var allResourcesByType: Map<String, List<AvailableResourceItemData>> = mapOf()
@@ -86,7 +86,7 @@ class ChooseResourcesFragment : SearchableBaseFragment<ResourceSelectViewModel>(
         binding.rv.apply {
             layoutManager = LinearLayoutManager(requireContext())
             itemAnimator = DefaultItemAnimator()
-            adapter = this@ChooseResourcesFragment.adapter
+            adapter = this@ResourceSelectionFragment.adapter
             setHasFixedSize(true)
             addItemDecoration(MarginItemDecoration())
         }
