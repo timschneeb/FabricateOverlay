@@ -15,6 +15,7 @@ import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.FragmentCurrentOverlaysBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
+import tk.zwander.fabricateoverlaysample.util.showAlert
 import tk.zwander.fabricateoverlaysample.util.showInputAlert
 
 class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
@@ -100,6 +101,11 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
         binding.btnSave.setOnClickListener {
             val ctx = requireContext()
 
+            if (entries.isEmpty()) {
+                ctx.showAlert(R.string.overlay_no_entries, R.string.overlay_no_entries_summary)
+                return@setOnClickListener
+            }
+
             ctx.showInputAlert(layoutInflater, R.string.add_overlay, R.string.overlay_name) { input ->
                 val name = input.filter { char -> (char.isLetterOrDigit() || char == '.' || char == '_') }
                     .replace(Regex("(_+)\\1"), "_")
@@ -107,24 +113,29 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                     .replace("_.", "_")
                     .replace("._", ".")
 
-                val fullName = "${'$'}{ctx.packageName}.${'$'}{appInfo.packageName}.${'$'}name"
+                val fullName = "${ctx.packageName}.${appInfo.packageName}.$name"
 
                 ctx.ensureHasOverlayPermission {
                     OverlayAPI.getInstance(ctx) { api ->
-                        api.registerFabricatedOverlay(
-                            FabricatedOverlay(
-                                fullName,
-                                appInfo.packageName,
-                                OverlayAPI.servicePackage ?: "com.android.shell"
-                            ).apply {
-                                entries.values.forEach { e ->
-                                    entries[e.resourceName] = e
+                        try {
+                            api.registerFabricatedOverlay(
+                                FabricatedOverlay(
+                                    fullName,
+                                    appInfo.packageName,
+                                    OverlayAPI.servicePackage ?: "com.android.shell"
+                                ).apply {
+                                    this@CurrentOverlayEntriesFragment.entries.forEach { e ->
+                                        entries[e.resourceName] = e
+                                    }
                                 }
-                            }
-                        )
+                            )
 
-                        // pop back to main fragment
-                        activity?.supportFragmentManager?.popBackStackImmediate(null, 0)
+                            // pop back to main fragment
+                            activity?.supportFragmentManager?.popBackStackImmediate(null, 0)
+                        }
+                        catch (e: Exception) {
+                            ctx.showAlert(e)
+                        }
                     }
                 }
             }
