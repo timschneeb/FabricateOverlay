@@ -1,6 +1,7 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
@@ -37,6 +38,9 @@ abstract class SearchableBaseFragment<T : SearchViewModel>(
                 // Keep the search query in sync and restore previous query
                 val currentQuery = vm.searchQueryLive.value ?: ""
                 searchView.setQuery(currentQuery, false)
+                searchView.isSubmitButtonEnabled = true
+
+                Log.e("SearchableBaseFragment", "Restoring search query: '$currentQuery'")
 
                 vm.searchQueryLive.observe(viewLifecycleOwner) { q ->
                     val text = q ?: ""
@@ -66,8 +70,7 @@ abstract class SearchableBaseFragment<T : SearchViewModel>(
                     }
 
                     override fun onQueryTextChange(newText: String?): Boolean {
-                        vm.searchQueryLive.value = newText ?: ""
-                        return true
+                        return false
                     }
                 })
             }
