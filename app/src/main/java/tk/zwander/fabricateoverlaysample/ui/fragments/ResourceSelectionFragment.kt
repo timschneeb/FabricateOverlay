@@ -30,6 +30,7 @@ import tk.zwander.fabricateoverlaysample.databinding.FragmentResourceSelectionBi
 import tk.zwander.fabricateoverlaysample.ui.adapters.ResourceListItem
 import tk.zwander.fabricateoverlaysample.ui.adapters.SelectableResourceItemAdapter
 import tk.zwander.fabricateoverlaysample.ui.model.ResourceSelectViewModel
+import tk.zwander.fabricateoverlaysample.util.FilterPrefs
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 import tk.zwander.fabricateoverlaysample.util.getAppResources
 import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
@@ -58,6 +59,14 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val vm = ViewModelProvider(requireActivity())[ResourceSelectViewModel::class.java]
         binding = FragmentResourceSelectionBinding.inflate(inflater, container, false)
+
+        // Load persisted filters into VM on first creation so initial load applies saved filters.
+        if (vm.memberFilter.isEmpty()) {
+            val loaded = FilterPrefs.loadFilters(requireContext())
+            vm.memberFilter.clear()
+            vm.memberFilter.putAll(loaded)
+            vm.memberFilterLive.value = vm.memberFilter
+        }
 
         // Create adapter and update ViewModel when headers are toggled so we can persist expansion state
         adapter = SelectableResourceItemAdapter({ item, checked ->
@@ -108,14 +117,14 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
         val filter = vm.memberFilter
         // Treat prefixes marked EXCLUDE as highest priority: if any exclude prefix matches, reject.
         val excluded = filter.filterValues { it == TriState.EXCLUDE }.keys
-        if (excluded.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains(p, ignoreCase = true) } }) {
+        if (excluded.any { prefixes -> prefixes.prefixes.any { p -> item.name.startsWith(p, ignoreCase = true) } }) {
             return false
         }
 
         // If there are any INCLUDE prefixes, only include items that match at least one INCLUDE prefix.
         val included = filter.filterValues { it == TriState.INCLUDE }.keys
         if (included.isNotEmpty()) {
-            return included.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains(p, ignoreCase = true) } }
+            return included.any { prefixes -> prefixes.prefixes.any { p -> item.name.startsWith(p, ignoreCase = true) } }
         }
 
         // Otherwise, include by default.
@@ -127,7 +136,7 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
         return items.filter { item ->
             if (!passesPrefixFilter(item, vm)) return@filter false
             if (!q.isNullOrBlank()) {
-                return@filter item.resourceName.lowercase().contains(q)
+                return@filter item.resourceName.lowercase().startsWith(q)
             }
             true
         }

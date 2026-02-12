@@ -1,12 +1,12 @@
 package tk.zwander.fabricateoverlaysample.ui.model
 
 import androidx.lifecycle.MutableLiveData
+import tk.zwander.fabricateoverlaysample.data.ResPrefixes
 import tk.zwander.fabricateoverlaysample.data.TriState
-import tk.zwander.fabricateoverlaysample.ui.fragments.FilterBottomSheetFragment
 
 class ResourceSelectViewModel : SearchViewModel() {
-    var memberFilter: MutableMap<FilterBottomSheetFragment.Companion.Prefixes, TriState> = mutableMapOf()
-    val memberFilterLive: MutableLiveData<MutableMap<FilterBottomSheetFragment.Companion.Prefixes, TriState>> = MutableLiveData(memberFilter)
+    var memberFilter: MutableMap<ResPrefixes, TriState> = mutableMapOf()
+    val memberFilterLive: MutableLiveData<MutableMap<ResPrefixes, TriState>> = MutableLiveData(memberFilter)
 
     var expandedHeaders: MutableSet<String> = mutableSetOf()
     // Scroll state: pair(index, offset). Null when not set.

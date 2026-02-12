@@ -1,5 +1,6 @@
 package tk.zwander.fabricateoverlaysample.ui.adapters
 
+import android.annotation.SuppressLint
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -16,11 +17,9 @@ sealed class ResourceListItem {
 
 class SelectableResourceItemAdapter(
     private val onSelectChanged: (AvailableResourceItemData, Boolean) -> Unit,
-    // Optional callback to notify when expanded set changes (headerTitle, isExpanded)
     private val onHeaderToggled: ((String, Boolean) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    // Keep the full flattened list (headers + items), and compute a visible subset
     private var fullItems: List<ResourceListItem> = listOf()
     private var visibleItems: MutableList<ResourceListItem> = mutableListOf()
     private val expanded = mutableSetOf<String>()
@@ -172,6 +171,7 @@ class SelectableResourceItemAdapter(
         }
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     private fun toggle(headerTitle: String) {
         if (expanded.contains(headerTitle)) {
             expanded.remove(headerTitle)
@@ -182,22 +182,18 @@ class SelectableResourceItemAdapter(
         notifyDataSetChanged()
     }
 
-    // Allow external callers (e.g., fragment) to set currently selected items if needed
+    @SuppressLint("NotifyDataSetChanged")
     fun setSelected(items: Set<AvailableResourceItemData>) {
         selected.clear()
         selected.addAll(items)
         notifyDataSetChanged()
     }
 
-    fun getSelected(): Set<AvailableResourceItemData> = selected.toSet()
-
-    // Persist/restore expanded headers
+    @SuppressLint("NotifyDataSetChanged")
     fun setExpandedHeaders(headers: Set<String>) {
         expanded.clear()
         expanded.addAll(headers)
         rebuildVisible()
         notifyDataSetChanged()
     }
-
-    fun getExpandedHeaders(): Set<String> = expanded.toSet()
 }
