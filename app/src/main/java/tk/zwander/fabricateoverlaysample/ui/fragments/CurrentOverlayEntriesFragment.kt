@@ -1,7 +1,6 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.TypedValue
@@ -125,79 +124,52 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                 return@setOnClickListener
             }
 
-            // In editing mode, use the existing overlay name
-            if (editingOverlayName != null) {
-                handleSaveEditedOverlay(ctx)
+            val currentEditing = editingOverlayName
+            if (currentEditing != null) {
+                saveOverlay(currentEditing)
             } else {
-                handleSaveNewOverlay(ctx)
+                // New overlay: prompt for a name, then register
+                ctx.showInputAlert(layoutInflater, R.string.add_overlay, R.string.overlay_name) { input ->
+                    val name = input.filter { char -> (char.isLetterOrDigit() || char == '.' || char == '_') }
+                        .replace(Regex("(_+)\\1"), "_")
+                        .replace(Regex("(\\.+)\\1"), ".")
+                        .replace("_.", "_")
+                        .replace("._", ".")
+
+                    saveOverlay("${ctx.packageName}.${appInfo.packageName}.$name")
+                }
             }
         }
 
         return binding.root
     }
 
-    private fun handleSaveNewOverlay(ctx: Context) {
-        ctx.showInputAlert(layoutInflater, R.string.add_overlay, R.string.overlay_name) { input ->
-            val name = input.filter { char -> (char.isLetterOrDigit() || char == '.' || char == '_') }
-                .replace(Regex("(_+)\\1"), "_")
-                .replace(Regex("(\\.+)\\1"), ".")
-                .replace("_.", "_")
-                .replace("._", ".")
-
-            val fullName = "${ctx.packageName}.${appInfo.packageName}.$name"
-
-            ctx.ensureHasOverlayPermission {
-                OverlayAPI.getInstance(ctx) { api ->
-                    try {
-                        api.registerFabricatedOverlay(
-                            FabricatedOverlay(
-                                fullName,
-                                appInfo.packageName,
-                                OverlayAPI.servicePackage ?: "com.android.shell"
-                            ).apply {
-                                this@CurrentOverlayEntriesFragment.entries.forEach { e ->
-                                    entries[e.resourceName] = e
-                                }
-                            }
-                        )
-
-                        // Save backup to SharedPreferences
-                        OverlayDataManager.saveOverlayEntries(ctx, fullName, entries.toList())
-
-                        api.setEnabled(fullName, true, 0)
-
-                        // return to root fragment
-                        activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-                    }
-                    catch (e: Exception) {
-                        ctx.showAlert(e)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun handleSaveEditedOverlay(ctx: Context) {
-        val editingOverlayName = editingOverlayName ?: throw IllegalStateException()
-
+    private fun saveOverlay(fullName: String) {
+        val ctx = context ?: return
         ctx.ensureHasOverlayPermission {
             OverlayAPI.getInstance(ctx) { api ->
                 try {
-                    // First, save the backup of new entries
-                    OverlayDataManager.saveOverlayEntries(ctx, editingOverlayName, entries.toList())
+                    // Save backup to SharedPreferences
+                    OverlayDataManager.saveOverlayEntries(ctx, fullName, entries.toList())
 
-                    // Unregister the old overlay
-                    api.unregisterFabricatedOverlay(
-                        FabricatedOverlay.generateOverlayIdentifier(
-                            editingOverlayName,
-                            OverlayAPI.servicePackage ?: "com.android.shell"
+                    try {
+                        // Attempt to get existing overlay, if it doesn't exist we'll get an exception
+                        val id = api.getOverlayInfoByIdentifier(
+                            FabricatedOverlay.generateOverlayIdentifier(
+                                fullName,
+                                OverlayAPI.servicePackage ?: "com.android.shell"
+                            ),
+                            0
                         )
-                    )
+                       api.unregisterFabricatedOverlay(id)
+                    }
+                    catch (_: Exception) {
+                        // No existing overlay, nothing to unregister
+                    }
 
-                    // Register the new overlay with the same name
                     api.registerFabricatedOverlay(
                         FabricatedOverlay(
-                            editingOverlayName,
+                            fullName,
                             appInfo.packageName,
                             OverlayAPI.servicePackage ?: "com.android.shell"
                         ).apply {
@@ -207,12 +179,11 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                         }
                     )
 
-                    api.setEnabled(editingOverlayName, true, 0)
+                    api.setEnabled(fullName, true, 0)
 
                     // return to root fragment
                     activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-                }
-                catch (e: Exception) {
+                } catch (e: Exception) {
                     ctx.showAlert(e)
                 }
             }
