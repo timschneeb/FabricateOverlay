@@ -164,6 +164,8 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                         // Save backup to SharedPreferences
                         OverlayDataManager.saveOverlayEntries(ctx, fullName, entries.toList())
 
+                        api.setEnabled(fullName, true, 0)
+
                         // return to root fragment
                         activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                     }
@@ -204,6 +206,8 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                             }
                         }
                     )
+
+                    api.setEnabled(editingOverlayName, true, 0)
 
                     // return to root fragment
                     activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
