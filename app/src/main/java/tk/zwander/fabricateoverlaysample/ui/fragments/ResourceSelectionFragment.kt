@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.dongliu.apk.parser.ApkFile
@@ -189,10 +190,14 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
                         val fm = parentFragmentManager
                         val cb = object : FragmentManager.FragmentLifecycleCallbacks() {
                             override fun onFragmentDestroyed(fm: FragmentManager, f: androidx.fragment.app.Fragment) {
-                                if (f === frag) {
-                                    // TODO delay by 100ms
-                                    suppressQueryChange = false
-                                    fm.unregisterFragmentLifecycleCallbacks(this)
+                                val self = this
+                                // Delay slightly to avoid timing/race conditions before re-enabling query changes.
+                                lifecycleScope.launch {
+                                    delay(100)
+                                    if (f === frag) {
+                                        suppressQueryChange = false
+                                        fm.unregisterFragmentLifecycleCallbacks(self)
+                                    }
                                 }
                             }
                         }
