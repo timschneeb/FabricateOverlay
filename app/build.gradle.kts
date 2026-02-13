@@ -55,6 +55,7 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:$shizukuVersion")
 
     implementation("net.dongliu:apk-parser:2.6.10")
+    implementation("com.google.code.gson:gson:2.10.1")
 
     implementation(project(":fabricateoverlay"))
 

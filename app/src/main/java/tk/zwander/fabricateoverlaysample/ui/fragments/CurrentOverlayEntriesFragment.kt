@@ -1,6 +1,7 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.TypedValue
@@ -18,6 +19,7 @@ import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.FragmentCurrentOverlaysBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
+import tk.zwander.fabricateoverlaysample.util.OverlayDataManager
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
 import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
@@ -29,6 +31,9 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
     private val entries = mutableListOf<FabricatedOverlayEntry>()
     private lateinit var appInfo: ApplicationInfo
 
+    // Editing mode support
+    private var editingOverlayName: String? = null
+
     private lateinit var adapter: CurrentOverlayEntriesAdapter
     private lateinit var binding: FragmentCurrentOverlaysBinding
 
@@ -36,6 +41,20 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         appInfo = requireArguments().getParcelableCompat<ApplicationInfo>("appInfo")!!
+
+        // Check if we're in editing mode
+        editingOverlayName = requireArguments().getString("editingOverlayName")
+
+        // If editing, load the backed-up entries
+        if (editingOverlayName != null) {
+            val backedUpEntries = OverlayDataManager.loadOverlayEntries(
+                requireContext(),
+                editingOverlayName!!
+            )
+            if (backedUpEntries != null) {
+                entries.addAll(backedUpEntries)
+            }
+        }
 
         parentFragmentManager.setFragmentResultListener(ResourceSelectionFragment.KEY_RESOURCES_SELECTED, this) { _, bundle ->
             val selected =
@@ -106,42 +125,94 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                 return@setOnClickListener
             }
 
-            ctx.showInputAlert(layoutInflater, R.string.add_overlay, R.string.overlay_name) { input ->
-                val name = input.filter { char -> (char.isLetterOrDigit() || char == '.' || char == '_') }
-                    .replace(Regex("(_+)\\1"), "_")
-                    .replace(Regex("(\\.+)\\1"), ".")
-                    .replace("_.", "_")
-                    .replace("._", ".")
-
-                val fullName = "${ctx.packageName}.${appInfo.packageName}.$name"
-
-                ctx.ensureHasOverlayPermission {
-                    OverlayAPI.getInstance(ctx) { api ->
-                        try {
-                            api.registerFabricatedOverlay(
-                                FabricatedOverlay(
-                                    fullName,
-                                    appInfo.packageName,
-                                    OverlayAPI.servicePackage ?: "com.android.shell"
-                                ).apply {
-                                    this@CurrentOverlayEntriesFragment.entries.forEach { e ->
-                                        entries[e.resourceName] = e
-                                    }
-                                }
-                            )
-
-                            // return to root fragment
-                            activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-                        }
-                        catch (e: Exception) {
-                            ctx.showAlert(e)
-                        }
-                    }
-                }
+            // In editing mode, use the existing overlay name
+            if (editingOverlayName != null) {
+                handleSaveEditedOverlay(ctx)
+            } else {
+                handleSaveNewOverlay(ctx)
             }
         }
 
         return binding.root
+    }
+
+    private fun handleSaveNewOverlay(ctx: Context) {
+        ctx.showInputAlert(layoutInflater, R.string.add_overlay, R.string.overlay_name) { input ->
+            val name = input.filter { char -> (char.isLetterOrDigit() || char == '.' || char == '_') }
+                .replace(Regex("(_+)\\1"), "_")
+                .replace(Regex("(\\.+)\\1"), ".")
+                .replace("_.", "_")
+                .replace("._", ".")
+
+            val fullName = "${ctx.packageName}.${appInfo.packageName}.$name"
+
+            ctx.ensureHasOverlayPermission {
+                OverlayAPI.getInstance(ctx) { api ->
+                    try {
+                        api.registerFabricatedOverlay(
+                            FabricatedOverlay(
+                                fullName,
+                                appInfo.packageName,
+                                OverlayAPI.servicePackage ?: "com.android.shell"
+                            ).apply {
+                                this@CurrentOverlayEntriesFragment.entries.forEach { e ->
+                                    entries[e.resourceName] = e
+                                }
+                            }
+                        )
+
+                        // Save backup to SharedPreferences
+                        OverlayDataManager.saveOverlayEntries(ctx, fullName, entries.toList())
+
+                        // return to root fragment
+                        activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+                    }
+                    catch (e: Exception) {
+                        ctx.showAlert(e)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleSaveEditedOverlay(ctx: Context) {
+        val editingOverlayName = editingOverlayName ?: throw IllegalStateException()
+
+        ctx.ensureHasOverlayPermission {
+            OverlayAPI.getInstance(ctx) { api ->
+                try {
+                    // First, save the backup of new entries
+                    OverlayDataManager.saveOverlayEntries(ctx, editingOverlayName, entries.toList())
+
+                    // Unregister the old overlay
+                    api.unregisterFabricatedOverlay(
+                        FabricatedOverlay.generateOverlayIdentifier(
+                            editingOverlayName,
+                            OverlayAPI.servicePackage ?: "com.android.shell"
+                        )
+                    )
+
+                    // Register the new overlay with the same name
+                    api.registerFabricatedOverlay(
+                        FabricatedOverlay(
+                            editingOverlayName,
+                            appInfo.packageName,
+                            OverlayAPI.servicePackage ?: "com.android.shell"
+                        ).apply {
+                            this@CurrentOverlayEntriesFragment.entries.forEach { e ->
+                                entries[e.resourceName] = e
+                            }
+                        }
+                    )
+
+                    // return to root fragment
+                    activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+                }
+                catch (e: Exception) {
+                    ctx.showAlert(e)
+                }
+            }
+        }
     }
 
     private fun handleEditEntry(position: Int, entry: FabricatedOverlayEntry) {

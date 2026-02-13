@@ -37,4 +37,5 @@
     <string name="filters">Filters</string>
     <string name="edit_color_hint">Color format: #AARRBBGG</string>
     <string name="invalid_value">Invalid value</string>
+    <string name="edit">Edit</string>
 </resources>

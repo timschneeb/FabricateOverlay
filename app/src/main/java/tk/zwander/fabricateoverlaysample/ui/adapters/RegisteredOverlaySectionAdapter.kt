@@ -2,6 +2,7 @@ package tk.zwander.fabricateoverlaysample.ui.adapters
 
 import android.annotation.SuppressLint
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.TextView
@@ -15,6 +16,7 @@ import tk.zwander.fabricateoverlaysample.BuildConfig
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.ItemSimpleHeaderBinding
 import tk.zwander.fabricateoverlaysample.databinding.ItemRegisteredOverlayBinding
+import tk.zwander.fabricateoverlaysample.util.OverlayDataManager
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showConfirmDialog
 
@@ -25,7 +27,8 @@ sealed class RegisteredListItem {
 
 class RegisteredOverlaySectionAdapter(
     private var items: MutableList<RegisteredListItem>,
-    private val onRemoved: () -> Unit
+    private val onRemoved: () -> Unit,
+    private val onEditClicked: ((OverlayInfo) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -38,6 +41,7 @@ class RegisteredOverlaySectionAdapter(
     }
 
     class OverlayVH(val binding: ItemRegisteredOverlayBinding) : ListItemViewHolder(binding.root) {
+        val ivEdit: MaterialButton = binding.ivEdit
         val ivDelete: MaterialButton = binding.ivDelete
         val tvName: TextView = binding.tvName
         val cbEnabled: CheckBox = binding.cbEnabled
@@ -91,6 +95,13 @@ class RegisteredOverlaySectionAdapter(
                     ?.trimStart('.')
                 h.cbEnabled.isChecked = info.isEnabled
 
+                // Show edit button only if backup exists
+                val ctx = h.itemView.context
+                val hasBackup = info.overlayName?.let {
+                    OverlayDataManager.hasBackup(ctx, it)
+                } ?: false
+                h.ivEdit.visibility = if (hasBackup) View.VISIBLE else View.GONE
+
                 // Item click toggles enabled state
                 h.itemView.setOnClickListener {
                     h.itemView.context.ensureHasOverlayPermission {
@@ -115,6 +126,11 @@ class RegisteredOverlaySectionAdapter(
                     h.itemView.performClick()
                 }
 
+                // Handle edit button click
+                h.ivEdit.setOnClickListener {
+                    onEditClicked?.invoke(info)
+                }
+
                 h.ivDelete.setOnClickListener {
                     val ctx = h.itemView.context
                     ctx.ensureHasOverlayPermission {
@@ -129,6 +145,10 @@ class RegisteredOverlaySectionAdapter(
                                         OverlayAPI.servicePackage ?: "com.android.shell"
                                     )
                                 )
+                                // Also delete the backup
+                                info.overlayName?.let {
+                                    OverlayDataManager.deleteBackup(ctx, it)
+                                }
                                 onRemoved()
                             }
                         }

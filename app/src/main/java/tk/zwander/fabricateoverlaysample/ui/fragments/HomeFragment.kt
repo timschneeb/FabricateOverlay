@@ -32,16 +32,22 @@ class HomeFragment : Fragment(), MainActivity.TitleProvider {
 
         binding.rvRegisteredOverlays.apply {
             layoutManager = LinearLayoutManager(requireContext())
-            adapter = RegisteredOverlaySectionAdapter(mutableListOf()) {
-                loadOverlays(true)
-            }.also {
+            adapter = RegisteredOverlaySectionAdapter(
+                mutableListOf(),
+                onRemoved = {
+                    loadOverlays(true)
+                },
+                onEditClicked = { overlayInfo ->
+                    (activity as? MainActivity)?.navigateToEditOverlay(overlayInfo)
+                }
+            ).also {
                 this@HomeFragment.adapter = it
             }
             addItemDecoration(MarginItemDecoration())
         }
 
         binding.fabApps.setOnClickListener {
-            (activity as? tk.zwander.fabricateoverlaysample.MainActivity)?.navigateToAppList()
+            (activity as? MainActivity)?.navigateToAppList()
         }
 
         // If we have cached items for this fragment instance, display them without reloading

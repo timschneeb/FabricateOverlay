@@ -43,6 +43,15 @@
                 android:duplicateParentState="true" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/iv_edit"
+                style="?attr/materialIconButtonStyle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/edit"
+                app:icon="@drawable/ic_edit"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/iv_delete"
                 style="?attr/materialIconButtonStyle"
                 android:layout_width="48dp"

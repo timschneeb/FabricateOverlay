@@ -12,6 +12,7 @@ import androidx.core.view.updateLayoutParams
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
 import tk.zwander.fabricateoverlay.ShizukuUtils
+import tk.zwander.fabricateoverlay.OverlayInfo
 import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
 import tk.zwander.fabricateoverlaysample.ui.fragments.AppListFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.CurrentOverlayEntriesFragment
@@ -130,6 +131,22 @@ class MainActivity : AppCompatActivity() {
             args.putParcelableArrayList("existing_entries", existingEntries)
         }
         frag.arguments = args
+
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, frag)
+            .addToBackStack(null)
+            .commit()
+    }
+
+    // Navigate to edit an existing overlay
+    fun navigateToEditOverlay(overlayInfo: OverlayInfo) {
+        val targetPackage = overlayInfo.targetPackageName
+
+        val frag = CurrentOverlayEntriesFragment()
+        frag.arguments = Bundle().apply {
+            putParcelable("appInfo", packageManager.getApplicationInfo(targetPackage, 0))
+            putString("editingOverlayName", overlayInfo.overlayName)
+        }
 
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, frag)
