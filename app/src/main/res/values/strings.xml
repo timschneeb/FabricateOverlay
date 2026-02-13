@@ -31,6 +31,7 @@
     <string name="delete_overlay">Delete overlay?</string>
     <string name="confirm">Confirm</string>
     <string name="filter">Filter</string>
+    <string name="overlay_no_resources">No resources overridden</string>
     <string name="overlay_no_entries">No entries selected</string>
     <string name="overlay_no_entries_summary">Please add at least one resource to create an overlay.</string>
     <string name="filters">Filters</string>

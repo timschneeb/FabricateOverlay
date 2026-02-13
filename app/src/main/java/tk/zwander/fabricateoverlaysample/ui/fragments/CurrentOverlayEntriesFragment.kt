@@ -67,8 +67,10 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
             // Replace backing list with deduplicated selection
             entries.clear()
             entries.addAll(resultMap.values)
-            if (::adapter.isInitialized)
+            if (::adapter.isInitialized) {
                 adapter.notifyDataSetChanged()
+                updateEmptyViewState()
+            }
         }
     }
 
@@ -88,6 +90,8 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
             }
             addItemDecoration(MarginItemDecoration())
         }
+
+        updateEmptyViewState()
 
         binding.btnAdd.setOnClickListener {
             val current = if(entries.isEmpty()) null else ArrayList(entries)
@@ -148,6 +152,7 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                 // Flip boolean value
                 entry.resourceValue = if (entry.resourceValue != 0) 0 else 1
                 adapter.notifyItemChanged(position)
+                updateEmptyViewState()
             }
             TypedValue.TYPE_INT_COLOR_ARGB8 -> {
                 // Color as hex string
@@ -159,6 +164,7 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                         val value = cleaned.toLong(16).toInt()
                         entry.resourceValue = value
                         adapter.notifyItemChanged(position)
+                        updateEmptyViewState()
                     } catch (e: Exception) {
                         ctx.showAlert(e)
                     }
@@ -173,6 +179,7 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                     } else {
                         entry.resourceValue = num
                         adapter.notifyItemChanged(position)
+                        updateEmptyViewState()
                     }
                 }
             }
@@ -186,10 +193,16 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                     } else {
                         entry.resourceValue = num
                         adapter.notifyItemChanged(position)
+                        updateEmptyViewState()
                     }
                 }
             }
         }
+    }
+
+    private fun updateEmptyViewState() {
+        val isEmpty = entries.isEmpty()
+        binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
     }
 
     override fun onDestroyView() {
