@@ -7,6 +7,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
+import android.util.TypedValue
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
 import tk.zwander.fabricateoverlay.OverlayAPI.Companion.getInstance
@@ -192,10 +194,24 @@ class OverlayAPI private constructor(private val iomService: IBinder) {
             String::class.java
         )
 
-        val setResourceValueMethod = fobClass.getMethod(
+        val setResourceValueIntMethod = fobClass.getMethod(
             "setResourceValue",
             String::class.java,
             Int::class.java,
+            Int::class.java
+        )
+
+        val setResourceValueStringMethod = fobClass.getMethod(
+            "setResourceValue",
+            String::class.java,
+            String::class.java,
+            Int::class.java
+        )
+
+        val setResourceValueFdMethod = fobClass.getMethod(
+            "setResourceValue",
+            String::class.java,
+            ParcelFileDescriptor::class.java,
             Int::class.java
         )
 
@@ -207,12 +223,21 @@ class OverlayAPI private constructor(private val iomService: IBinder) {
         }
 
         overlay.entries.forEach { (_, entry) ->
-            setResourceValueMethod.invoke(
-                fobInstance,
-                entry.resourceName,
-                entry.resourceType,
-                entry.resourceValue
-            )
+            // TODO: implement other types using string/int/fd setters
+            when (entry.resourceType) {
+                TypedValue.TYPE_STRING, TypedValue.TYPE_FRACTION -> setResourceValueStringMethod.invoke(
+                    fobInstance,
+                    entry.resourceName,
+                    entry.resourceValue.toString(),
+                    entry.resourceType
+                )
+                else -> setResourceValueIntMethod.invoke(
+                    fobInstance,
+                    entry.resourceName,
+                    entry.resourceType,
+                    entry.resourceValue
+                )
+            }
         }
 
         val foInstance = fobClass.getMethod("build")

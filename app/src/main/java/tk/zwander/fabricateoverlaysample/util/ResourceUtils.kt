@@ -9,6 +9,16 @@ import com.reandroid.arsc.model.ResourceEntry
 import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
 import java.util.TreeMap
 
+val supportedTypes = setOf(
+    "string",
+    "color",
+    "dimen",
+    "fraction",
+    "integer",
+    "bool",
+    "id"
+)
+
 fun getAppResources(
     context: Context,
     packageName: String
@@ -27,7 +37,8 @@ fun getAppResources(
 
         packageBlock.listSpecTypePairs().forEach { specTypePair ->
             val typeName = specTypePair.typeName
-
+            if (typeName !in supportedTypes)
+                return@forEach
 
             val iterator: MutableIterator<ResourceEntry?> = specTypePair.getResources()
             while (iterator.hasNext()) {
