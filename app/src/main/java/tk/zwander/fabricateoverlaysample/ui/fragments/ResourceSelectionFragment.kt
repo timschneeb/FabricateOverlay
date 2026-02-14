@@ -22,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import net.dongliu.apk.parser.ApkFile
 import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
 import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
@@ -218,7 +217,7 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
 
         val ctx = requireContext()
         lifecycleScope.launch(Dispatchers.IO) {
-            val resources = getAppResources(ctx, ApkFile(info.sourceDir))
+            val resources = getAppResources(ctx, info.packageName)
 
             val flat = ArrayList<AvailableResourceItemData>()
             resources.forEach { (_, list) -> list.forEach { flat.add(it) } }

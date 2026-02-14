@@ -1,102 +1,89 @@
 package tk.zwander.fabricateoverlaysample.util
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources.NotFoundException
 import android.util.TypedValue
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
-import net.dongliu.apk.parser.AbstractApkFile
-import net.dongliu.apk.parser.ApkFile
-import net.dongliu.apk.parser.parser.ResourceTableParser
-import net.dongliu.apk.parser.struct.AndroidConstants
-import net.dongliu.apk.parser.struct.resource.ResourcePackage
-import net.dongliu.apk.parser.struct.resource.ResourceTable
+import com.reandroid.apk.ApkModule
+import com.reandroid.arsc.model.ResourceEntry
 import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
-import java.nio.ByteBuffer
-import java.util.*
+import java.util.TreeMap
 
-
-@Suppress("UNCHECKED_CAST")
-val ResourceTable.packageMap: Map<Short, ResourcePackage>
-    get() = ResourceTable::class.java
-        .getDeclaredField("packageMap")
-        .apply { isAccessible = true }
-        .get(this) as Map<Short, ResourcePackage>
-
-fun AbstractApkFile.getResourceTable(): ResourceTable {
-    val data = getFileData(AndroidConstants.RESOURCE_FILE) ?: return ResourceTable()
-    val buffer = ByteBuffer.wrap(data)
-    val parser = ResourceTableParser(buffer)
-
-    parser.parse()
-
-    return parser.resourceTable
-}
-
-suspend fun getAppResources(
+fun getAppResources(
     context: Context,
-    apk: ApkFile
-): Map<String, List<AvailableResourceItemData>> = coroutineScope {
-    val table = apk.getResourceTable()
+    packageName: String
+): Map<String, List<AvailableResourceItemData>> {
+
+    val module: ApkModule = ApkParser(context, packageName).module
+    if (!module.hasTableBlock()){
+        return emptyMap()
+    }
+
     val list = TreeMap<String, MutableList<AvailableResourceItemData>>()
 
-    table.packageMap.forEach { (k, v) ->
-        val (pkgCode, resPkg) = k.toInt() to v
+    module.tableBlock.listPackages().forEach { packageBlock ->
+        // Ensure types are in stable order
+        packageBlock.sortTypes()
 
-        val integerIndex = resPkg.typeSpecMap.filter { it.value.name == "integer" }.entries.elementAtOrNull(0)
-        val colorIndex = resPkg.typeSpecMap.filter { it.value.name == "color" }.entries.elementAtOrNull(0)
-        val booleanIndex = resPkg.typeSpecMap.filter { it.value.name == "bool" }.entries.elementAtOrNull(0)
-        val dimensionIndex = resPkg.typeSpecMap.filter { it.value.name == "dimen" }.entries.elementAtOrNull(0)
+        packageBlock.listSpecTypePairs().forEach { specTypePair ->
+            val typeName = specTypePair.typeName
 
-        val integerStart = integerIndex?.run { (key.toInt() shl 16) or (pkgCode shl 24) }
-        val colorStart = colorIndex?.run { (key.toInt() shl 16) or (pkgCode shl 24) }
-        val booleanStart = booleanIndex?.run { (key.toInt() shl 16) or (pkgCode shl 24) }
-        val dimensionStart = dimensionIndex?.run { (key.toInt() shl 16) or (pkgCode shl 24) }
 
-        val integerSize = integerIndex?.value?.entryFlags?.size
-        val colorSize = colorIndex?.value?.entryFlags?.size
-        val booleanSize = booleanIndex?.value?.entryFlags?.size
-        val dimensionSize = dimensionIndex?.value?.entryFlags?.size
+            val iterator: MutableIterator<ResourceEntry?> = specTypePair.getResources()
+            while (iterator.hasNext()) {
+                val resourceEntry: ResourceEntry? = iterator.next()
+                if (resourceEntry != null && !resourceEntry.isEmpty) {
+                    // Determine resource type name
+                    val rType = resourceEntry.type ?: typeName
+                    val rName = resourceEntry.getName()
 
-        val loopRange: suspend CoroutineScope.(start: Int, end: Int, type: Int) -> Unit = { start: Int, end: Int, type: Int ->
-            for (i in start until end) {
-                try {
-                    val r = table.getResourcesById(i.toLong())
-                    if (r.isEmpty()) continue
+                    if (rType.isNullOrEmpty() || rName.isEmpty())
+                        continue
 
-                    val t = r[0].type.name
-
-                    if (list[t] == null) {
-                        list[t] = ArrayList()
+                    if (list[rType] == null) {
+                        list[rType] = ArrayList()
                     }
 
-                    val fqrn = "${apk.apkMeta.packageName}:${r[0].type.name}/${r[0].resourceEntry.key}"
+                    /*
+                     * The package block name is not guaranteed to be the same as the application package name.
+                     * System apps that have been renamed using the "original-package" manifest attribute will
+                     * have a package block name that matches the original package, not the renamed one.
+                     */
+                    val pkgBlockName = packageBlock.name ?: packageName
 
-                    list[t]!!.add(AvailableResourceItemData(
-                        fqrn,
-                        r[0].resourceEntry.key,
-                        type,
-                        context.getCurrentResourceValue(apk.apkMeta.packageName, fqrn)
-                    ))
-                } catch (e: NotFoundException) {
+                    // Build fully-qualified resource name
+                    val fqrn = "${pkgBlockName}:$rType/${rName}"
+
+                    // Infer a simple value type for some common resource types
+                    val valueType = when (rType) {
+                        "integer" -> TypedValue.TYPE_INT_DEC
+                        "color" -> TypedValue.TYPE_INT_COLOR_ARGB8
+                        "bool" -> TypedValue.TYPE_INT_BOOLEAN
+                        "dimen" -> TypedValue.TYPE_DIMENSION
+                        "fraction" -> TypedValue.TYPE_STRING // TYPE_FRACTION
+                        "string" -> TypedValue.TYPE_STRING
+                        "id" -> TypedValue.TYPE_INT_DEC
+                        else -> 0
+                    }
+
+                    val current = try {
+                        context.getCurrentResourceValue(packageName, fqrn)
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                        arrayOf()
+                    }
+
+                    list[rType]!!
+                        .add(
+                            AvailableResourceItemData(
+                                fqrn,
+                                rName,
+                                valueType,
+                                current
+                            )
+                        )
                 }
             }
-        }
-
-        integerStart?.let {
-            loopRange(it, it + integerSize!!, TypedValue.TYPE_INT_DEC)
-        }
-
-        colorStart?.let {
-            loopRange(it, it + colorSize!!, TypedValue.TYPE_INT_COLOR_ARGB8)
-        }
-
-        booleanStart?.let {
-            loopRange(it, it + booleanSize!!, TypedValue.TYPE_INT_BOOLEAN)
-        }
-
-        dimensionStart?.let {
-            loopRange(it, it + dimensionSize!!, TypedValue.TYPE_DIMENSION)
         }
     }
 
@@ -104,9 +91,11 @@ suspend fun getAppResources(
         v.sort()
     }
 
-    list
+    return list
 }
 
+
+@SuppressLint("DiscouragedApi")
 fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<String> {
     val res = packageManager.getResourcesForApplication(packageName)
 
@@ -124,7 +113,9 @@ fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<St
                 "$valueString -> $resolvedString"
             }
         )
-    } catch (e: NotFoundException) {}
+    } catch (e: NotFoundException) {
+        e.printStackTrace()
+    }
 
     return try {
         val split = fqrn.split(":", "/")
@@ -149,6 +140,7 @@ fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<St
 
         items.toTypedArray()
     } catch (e: NotFoundException) {
+        e.printStackTrace()
         arrayOf()
     }
 }

@@ -48,7 +48,6 @@ dependencies {
     implementation("dev.rikka.shizuku:api:$shizukuVersion")
     implementation("dev.rikka.shizuku:provider:$shizukuVersion")
 
-    implementation("net.dongliu:apk-parser:2.6.10")
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("io.github.reandroid:ARSCLib:1.3.8")
 
