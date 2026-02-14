@@ -26,7 +26,8 @@ import android.util.TypedValue
 class FabricatedOverlay(
     val overlayName: String,
     val targetPackage: String,
-    val sourcePackage: String = "com.android.shell"
+    val sourcePackage: String = "com.android.shell",
+    val targetOverlayableName: String? = null,
 ) {
     companion object {
         private val oiClass = Class.forName("android.content.om.OverlayIdentifier")

@@ -3,6 +3,7 @@ package tk.zwander.fabricateoverlaysample.ui.fragments
 import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
+import android.util.Log
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
@@ -25,6 +26,7 @@ import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
 import tk.zwander.fabricateoverlaysample.util.showAlert
 import tk.zwander.fabricateoverlaysample.util.showInputAlert
 import tk.zwander.fabricateoverlaysample.util.toast
+import java.lang.reflect.InvocationTargetException
 
 class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
     private val entries = mutableListOf<FabricatedOverlayEntry>()
@@ -163,23 +165,58 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                         )
                        api.unregisterFabricatedOverlay(id)
                     }
-                    catch (_: Exception) {
+                    catch (e: Exception) {
                         // No existing overlay, nothing to unregister
+                        Log.e("CurrentOverlayEntriesFragment", "No existing overlay to unregister", e)
                     }
+
+                    val childOverlays =
+                        api.getAllOverlays(0)
+                            .filter { it.key == appInfo.packageName }
+                            .values
+                            .firstOrNull()
+
+                    /*
+                     * Necessary for some apps like com.google.android.permissioncontroller.
+                     * It doesn't define any <overlayable> itself, but it has another overlay with
+                     * greater priority that declares a non-existant overlayableTargetName.
+                     *
+                     * TODO: We do not take actual <overlayable> definitions into account at the moment.
+                     */
+                    val targetOverlayable = childOverlays
+                            ?.firstOrNull { it.targetOverlayableName != null && it.isEnabled }
+                            ?.targetOverlayableName
+                            ?.also {
+                            Log.d("FabricateOverlay", "Using target overlayable $it from existing overlay")
+                        }
 
                     api.registerFabricatedOverlay(
                         FabricatedOverlay(
                             fullName,
                             appInfo.packageName,
-                            OverlayAPI.servicePackage ?: "com.android.shell"
+                            OverlayAPI.servicePackage ?: "com.android.shell",
+                            targetOverlayable
                         ).apply {
-                            this@CurrentOverlayEntriesFragment.entries.forEach { e ->
+                            this@CurrentOverlayEntriesFragment
+                                .entries
+                                .forEach { e ->
+
+                                    // TODO
+                                    //e.resourceName = e.resourceName.replace("com.google.android.permissioncontroller", "com.android.permissioncontroller")
+                                    //Log.e("FabricateOverlay", "Adding entry: ${e.resourceName} = ${e.resourceValue} (type ${e.resourceType})")
+
                                 entries[e.resourceName] = e
                             }
                         }
                     )
 
-                    api.setEnabled(fullName, true, 0)
+                    try {
+                        api.setEnabled(fullName, true, 0)
+                    }
+                    catch (e: InvocationTargetException) {
+                        context?.showAlert(e.targetException)
+                        Log.e("CurrentOverlayEntriesFragment", "Failed to enable overlay", e.targetException)
+                    }
 
                     // return to root fragment
                     activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)

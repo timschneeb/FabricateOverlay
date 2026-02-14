@@ -9,6 +9,8 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
+import tk.zwander.fabricateoverlay.OverlayAPI.Companion.getInstance
+import tk.zwander.fabricateoverlay.OverlayAPI.Companion.getInstanceDirect
 
 /**
  * The main API for registering and unregistering fabricated overlays.
@@ -185,12 +187,24 @@ class OverlayAPI private constructor(private val iomService: IBinder) {
             overlay.targetPackage
         )
 
+        val setTargetOverlayableMethod = fobClass.getMethod(
+            "setTargetOverlayable",
+            String::class.java
+        )
+
         val setResourceValueMethod = fobClass.getMethod(
             "setResourceValue",
             String::class.java,
             Int::class.java,
             Int::class.java
         )
+
+        if (overlay.targetOverlayableName != null) {
+            setTargetOverlayableMethod.invoke(
+                fobInstance,
+                overlay.targetOverlayableName
+            )
+        }
 
         overlay.entries.forEach { (_, entry) ->
             setResourceValueMethod.invoke(
