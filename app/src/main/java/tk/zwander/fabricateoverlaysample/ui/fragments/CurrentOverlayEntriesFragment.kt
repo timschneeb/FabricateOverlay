@@ -18,6 +18,7 @@ import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.FragmentCurrentOverlaysBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
+import tk.zwander.fabricateoverlaysample.util.ApkParser
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 import tk.zwander.fabricateoverlaysample.util.OverlayDataManager
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
@@ -163,11 +164,20 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                             ),
                             0
                         )
-                       api.unregisterFabricatedOverlay(id)
+                        api.unregisterFabricatedOverlay(id)
                     }
                     catch (e: Exception) {
                         // No existing overlay, nothing to unregister
                         Log.e("CurrentOverlayEntriesFragment", "No existing overlay to unregister", e)
+                    }
+
+                    val realPackage = try {
+                        ApkParser(ctx, appInfo.packageName).realPackage?.also {
+                            Log.d("CurrentOverlayEntriesFragment", "Using real package name $it")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("CurrentOverlayEntriesFragment", "Failed to parse APK for real package name, falling back to manifest package name", e)
+                        ctx.toast("Exception while parsing APK: ${e.message}")
                     }
 
                     val childOverlays =
@@ -184,9 +194,9 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                      * TODO: We do not take actual <overlayable> definitions into account at the moment.
                      */
                     val targetOverlayable = childOverlays
-                            ?.firstOrNull { it.targetOverlayableName != null && it.isEnabled }
-                            ?.targetOverlayableName
-                            ?.also {
+                        ?.firstOrNull { it.targetOverlayableName != null && it.isEnabled }
+                        ?.targetOverlayableName
+                        ?.also {
                             Log.d("FabricateOverlay", "Using target overlayable $it from existing overlay")
                         }
 
@@ -200,13 +210,11 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                             this@CurrentOverlayEntriesFragment
                                 .entries
                                 .forEach { e ->
-
-                                    // TODO
-                                    //e.resourceName = e.resourceName.replace("com.google.android.permissioncontroller", "com.android.permissioncontroller")
-                                    //Log.e("FabricateOverlay", "Adding entry: ${e.resourceName} = ${e.resourceValue} (type ${e.resourceType})")
-
-                                entries[e.resourceName] = e
-                            }
+                                    if (realPackage != null && !e.resourceName.startsWith("$realPackage:")) {
+                                        e.resourceName = e.resourceName.replaceFirst("${appInfo.packageName}:", "$realPackage:")
+                                    }
+                                    entries[e.resourceName] = e
+                                }
                         }
                     )
 

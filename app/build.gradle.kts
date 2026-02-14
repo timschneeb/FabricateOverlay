@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -30,7 +29,6 @@ android {
     }
 
     buildFeatures {
-        compose = true
         buildConfig = true
         viewBinding = true
     }
@@ -43,10 +41,6 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 
-    implementation("androidx.activity:activity-compose:1.12.3")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
-    implementation("androidx.navigation:navigation-compose:2.9.7")
-
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.3-native-mt")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.3-native-mt")
 
@@ -55,7 +49,8 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:$shizukuVersion")
 
     implementation("net.dongliu:apk-parser:2.6.10")
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.google.code.gson:gson:2.13.2")
+    implementation("io.github.reandroid:ARSCLib:1.3.8")
 
     implementation(project(":fabricateoverlay"))
 
