@@ -11,7 +11,9 @@ class ApkParser {
         val path = getApkPath(context, packageName)
             ?: throw IllegalArgumentException("Failed to locate APK for package $packageName")
 
-        module = ApkModule.loadApkFile(File(path), File("/system/framework/framework-res.apk"))
+        val framework = File("/system/framework/framework-res.apk")
+        val apk = File(path)
+        module = ApkModule.loadApkFile(apk, if (framework != apk) framework else null)
         realPackage = module.androidManifest
             .manifestElement
             .getElements { it.name == "original-package" }.asSequence().firstOrNull()
