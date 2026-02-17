@@ -119,10 +119,7 @@ fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<Re
         var current = TypedValue()
         current.setTo(initial)
 
-        Timber.d("Resolving resource %s", fqrn)
         while (true) {
-            Timber.d("\t%s; type=%d, data=%d, string=%s, resourceId=%d", fqrn, current.type, current.data, current.string, current.resourceId)
-
             // If this is a reference to another resource, compute the referenced id now so we can
             // detect cycles before adding duplicate entries to the chain.
             val isRef = current.type == TypedValue.TYPE_REFERENCE || current.type == TypedValue.TYPE_ATTRIBUTE
