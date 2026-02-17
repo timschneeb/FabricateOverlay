@@ -144,7 +144,6 @@ public final class OverlayManagerTransaction implements Parcelable {
 
     /**
      * Builder class for OverlayManagerTransaction objects.
-     * TODO(b/269197647): mark the API used by the systemUI.
      * @hide
      */
     public static final class Builder {

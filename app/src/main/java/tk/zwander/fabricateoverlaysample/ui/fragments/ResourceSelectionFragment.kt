@@ -151,7 +151,6 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
 
         val listItems = ArrayList<ResourceListItem>()
         grouped.forEach { (type, list) ->
-            // TODO: also group by resource package (if there are multiple)
             listItems.add(ResourceListItem.Header(type))
             list.forEach { listItems.add(ResourceListItem.Item(it)) }
         }
