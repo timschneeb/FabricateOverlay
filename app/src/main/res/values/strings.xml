@@ -41,4 +41,5 @@
     <string name="edit_dimension_hint">Float number with unit (px/dp/sp/pt/in/mm)</string>
     <string name="edit_fraction_hint">Fraction: use percent (e.g. 50% or 50%p)</string>
     <string name="edit_integer_hint">Integer number</string>
+    <string name="menu_system_apps_only">System apps only</string>
 </resources>

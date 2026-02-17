@@ -1,9 +1,16 @@
 package tk.zwander.fabricateoverlaysample.ui.fragments
 
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.MenuHost
+import androidx.core.view.MenuProvider
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.coroutines.CoroutineScope
@@ -56,6 +63,29 @@ class AppListFragment : SearchableBaseFragment<AppListViewModel>(AppListViewMode
             updateList()
         }
 
+        // Add menu provider so we can toggle "system apps only" from the action bar
+        val menuHost: MenuHost = requireActivity()
+        menuHost.addMenuProvider(object : MenuProvider {
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.menu_app_filter, menu)
+                val systemItem = menu.findItem(R.id.action_system_apps_only)
+                systemItem?.isChecked = vm.systemAppsOnlyLive.value == true
+            }
+
+            override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+                return when (menuItem.itemId) {
+                    R.id.action_system_apps_only -> {
+                        val newState = !menuItem.isChecked
+                        menuItem.isChecked = newState
+                        vm.systemAppsOnlyLive.value = newState
+                        updateList()
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
+
         val ctx = requireContext()
         if (allApps.isEmpty()) {
             scope.launch(Dispatchers.IO) {
@@ -89,12 +119,19 @@ class AppListFragment : SearchableBaseFragment<AppListViewModel>(AppListViewMode
     }
 
     private fun updateList() {
-        val query = ViewModelProvider(requireActivity())[AppListViewModel::class.java]
-            .searchQueryLive.value
-        val filtered = if (query.isNullOrEmpty())
+        val vm = ViewModelProvider(requireActivity())[AppListViewModel::class.java]
+        val query = vm.searchQueryLive.value
+        val systemOnly = vm.systemAppsOnlyLive.value == true
+
+        var filtered = if (query.isNullOrEmpty())
             allApps
         else
             allApps.filter { app -> app.label.contains(query, true) || app.info.packageName.contains(query, true) }
+
+        if (systemOnly) {
+            filtered = filtered.filter { it.info.flags and ApplicationInfo.FLAG_SYSTEM != 0 }
+        }
+
         adapter.update(filtered)
     }
 

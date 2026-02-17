@@ -1,3 +1,7 @@
 package tk.zwander.fabricateoverlaysample.ui.model
 
-class AppListViewModel : SearchViewModel()
+import androidx.lifecycle.MutableLiveData
+
+class AppListViewModel : SearchViewModel() {
+    val systemAppsOnlyLive: MutableLiveData<Boolean> = MutableLiveData(false)
+}
