@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
+import tk.zwander.fabricateoverlaysample.data.ResPrefixes
 import tk.zwander.fabricateoverlaysample.data.TriState
 import tk.zwander.fabricateoverlaysample.databinding.FragmentResourceSelectionBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.ResourceListItem
@@ -111,19 +112,44 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
         return binding.root
     }
 
+    private val blocklistResCache = mutableMapOf<ResPrefixes, Set<String>>()
+
+    private fun loadBlocklist(prefixGroup: ResPrefixes): Set<String> {
+        return blocklistResCache.getOrPut(prefixGroup) {
+            prefixGroup.blocklistRes?.let { resId ->
+                context?.resources?.openRawResource(resId)?.bufferedReader()?.useLines { lines ->
+                    lines.mapNotNull { line ->
+                        line.trim()
+                            .takeIf(String::isNotEmpty)
+                            .takeIf { it?.startsWith("#") == false }
+                            .takeIf { it?.contains(",") == true }
+                            ?.split(',')
+                            ?.joinToString("/")
+                    }.toSet()
+                }
+            } ?: emptySet()
+        }
+    }
+
     // Returns true if the item passes the prefix-based filter in vm
-    private fun passesPrefixFilter(item: AvailableResourceItemData, vm: ResourceSelectViewModel): Boolean {
+    private fun passesResourceFilter(item: AvailableResourceItemData, vm: ResourceSelectViewModel): Boolean {
         val filter = vm.memberFilter
         // Treat prefixes marked EXCLUDE as highest priority: if any exclude prefix matches, reject.
         val excluded = filter.filterValues { it == TriState.EXCLUDE }.keys
-        if (excluded.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains("/$p") } }) {
+        if (excluded.any { group ->
+            group.prefixes.any { p -> item.name.contains("/$p") } ||
+                    loadBlocklist(group).any { b -> item.name.endsWith(b) }
+        }) {
             return false
         }
 
         // If there are any INCLUDE prefixes, only include items that match at least one INCLUDE prefix.
         val included = filter.filterValues { it == TriState.INCLUDE }.keys
         if (included.isNotEmpty()) {
-            return included.any { prefixes -> prefixes.prefixes.any { p -> item.name.contains("/$p") } }
+            return included.any { group ->
+                group.prefixes.any { p -> item.name.contains("/$p") } ||
+                        loadBlocklist(group).any { b -> item.name.endsWith(b) }
+            }
         }
 
         // Otherwise, include by default.
@@ -133,7 +159,7 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
     private fun applyFilters(items: List<AvailableResourceItemData>, vm: ResourceSelectViewModel): List<AvailableResourceItemData> {
         val q = vm.searchQueryLive.value?.trim()?.lowercase()
         return items.filter { item ->
-            if (!passesPrefixFilter(item, vm)) return@filter false
+            if (!passesResourceFilter(item, vm)) return@filter false
             if (!q.isNullOrBlank()) {
                 return@filter item.resourceName.lowercase().contains(q)
             }
