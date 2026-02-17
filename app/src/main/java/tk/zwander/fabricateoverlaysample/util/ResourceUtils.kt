@@ -119,7 +119,21 @@ fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<Re
         var current = TypedValue()
         current.setTo(initial)
 
+        Timber.d("Resolving resource %s", fqrn)
         while (true) {
+            Timber.d("\t%s; type=%d, data=%d, string=%s, resourceId=%d", fqrn, current.type, current.data, current.string, current.resourceId)
+
+            // If this is a reference to another resource, compute the referenced id now so we can
+            // detect cycles before adding duplicate entries to the chain.
+            val isRef = current.type == TypedValue.TYPE_REFERENCE || current.type == TypedValue.TYPE_ATTRIBUTE
+            val resid = if (isRef) current.data else current.resourceId
+
+            // If we've already visited this referenced id, stop to avoid repeating the same step.
+            if (isRef && resid != 0 && visited.contains(resid)) {
+                Timber.w("Detected cycle or already-seen reference id $resid for $fqrn; stopping to avoid duplicate entries")
+                break
+            }
+
             chain.add(
                 ResourceValueInfo(
                     current.type,
@@ -129,18 +143,14 @@ fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<Re
             )
 
             // If this is a reference to another resource, try to follow it by resourceId
-            val isRef = current.type == TypedValue.TYPE_REFERENCE || current.type == TypedValue.TYPE_ATTRIBUTE
-            val resid = current.resourceId
-            if (isRef && resid != 0 && !visited.contains(resid)) {
+            if (isRef && resid != 0) {
                 visited.add(resid)
                 try {
                     val next = TypedValue()
-                    // Get the value without resolving refs so we can track the chain step-by-step
                     res.getValue(resid, next, false)
                     current = next
                     continue
                 } catch (e: Exception) {
-                    // If we can't resolve by id, stop following
                     Timber.e(e, "Failed to resolve reference with id $resid")
                     break
                 }
