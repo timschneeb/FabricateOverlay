@@ -13,7 +13,7 @@ class ApkParser {
 
         val framework = File("/system/framework/framework-res.apk")
         val apk = File(path)
-        module = ApkModule.loadApkFile(apk, if (framework != apk) framework else null)
+        module = ApkModule.loadApkFile(apk)//, if (framework != apk) framework else null)
     }
 
     val module: ApkModule
