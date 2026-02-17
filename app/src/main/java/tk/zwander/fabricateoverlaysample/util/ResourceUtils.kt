@@ -78,7 +78,7 @@ fun getAppResources(
                     }
 
                     val current = try {
-                        context.getCurrentResourceValue(pkgBlockName, fqrn)
+                        context.getCurrentResourceValue(packageName, fqrn)
                     } catch (e: Throwable) {
                         Timber.e(e, "Failed to get current value for resource $fqrn")
                         arrayOf()
