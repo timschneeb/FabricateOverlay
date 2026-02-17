@@ -9,13 +9,13 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.listitem.ListItemViewHolder
-import tk.zwander.fabricateoverlay.FabricatedOverlay
+import tk.zwander.fabricateoverlay.FabricatedOverlayWrapper
 import tk.zwander.fabricateoverlay.OverlayAPI
 import tk.zwander.fabricateoverlay.OverlayInfo
 import tk.zwander.fabricateoverlaysample.BuildConfig
 import tk.zwander.fabricateoverlaysample.R
-import tk.zwander.fabricateoverlaysample.databinding.ItemSimpleHeaderBinding
 import tk.zwander.fabricateoverlaysample.databinding.ItemRegisteredOverlayBinding
+import tk.zwander.fabricateoverlaysample.databinding.ItemSimpleHeaderBinding
 import tk.zwander.fabricateoverlaysample.util.OverlayDataManager
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.showConfirmDialog
@@ -106,7 +106,7 @@ class RegisteredOverlaySectionAdapter(
                 h.itemView.setOnClickListener {
                     h.itemView.context.ensureHasOverlayPermission {
                         OverlayAPI.getInstance(h.itemView.context) { api ->
-                            val overlayId = FabricatedOverlay.generateOverlayIdentifier(
+                            val overlayId = FabricatedOverlayWrapper.generateOverlayIdentifier(
                                 info.overlayName,
                                 info.packageName
                             )
@@ -114,7 +114,7 @@ class RegisteredOverlaySectionAdapter(
                             api.setEnabled(overlayId, !info.isEnabled, 0)
 
                             items[position] = RegisteredListItem.Overlay(
-                                api.getOverlayInfoByIdentifier(overlayId, 0)
+                                api.getOverlayInfoByIdentifier(overlayId, 0)!!
                             )
                             notifyItemChanged(position)
                         }
@@ -140,7 +140,7 @@ class RegisteredOverlaySectionAdapter(
                         ) {
                             OverlayAPI.getInstance(ctx) { api ->
                                 api.unregisterFabricatedOverlay(
-                                    FabricatedOverlay.generateOverlayIdentifier(
+                                    FabricatedOverlayWrapper.generateOverlayIdentifier(
                                         info.overlayName,
                                         OverlayAPI.servicePackage ?: "com.android.shell"
                                     )

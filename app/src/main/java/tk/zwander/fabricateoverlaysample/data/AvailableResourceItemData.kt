@@ -1,11 +1,27 @@
 package tk.zwander.fabricateoverlaysample.data
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+
+@Parcelize
 data class AvailableResourceItemData(
     val name: String,
     val resourceName: String,
     val type: Int,
-    val values: Array<String>
-) : Comparable<AvailableResourceItemData> {
+    var values: Array<ResourceValueInfo>
+) : Comparable<AvailableResourceItemData>, Parcelable {
+    fun valuesToString(): String {
+        return values.joinToString(" -> ", transform = ResourceValueInfo::toString)
+    }
+
+    fun setValue(value: Int) {
+        values = arrayOf(ResourceValueInfo(type, value, null))
+    }
+
+    fun setValue(value: String) {
+        values = arrayOf(ResourceValueInfo(type, null, value))
+    }
+
     override fun compareTo(other: AvailableResourceItemData): Int {
         return name.compareTo(other.name)
     }

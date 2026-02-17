@@ -2,10 +2,11 @@ package tk.zwander.fabricateoverlaysample.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
-import androidx.core.content.edit
+import timber.log.Timber
+import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
 
 /**
  * Manages persistence of overlay data using SharedPreferences.
@@ -27,12 +28,12 @@ object OverlayDataManager {
      * Save overlay entries to SharedPreferences
      * @param context Application context
      * @param overlayName Unique identifier for the overlay
-     * @param entries List of FabricatedOverlayEntry to save
+     * @param entries List of AvailableResourceItemData to save
      */
     fun saveOverlayEntries(
         context: Context,
         overlayName: String,
-        entries: List<FabricatedOverlayEntry>
+        entries: List<AvailableResourceItemData>
     ) {
         val prefs = getPrefs(context)
         val json = gson.toJson(entries)
@@ -43,19 +44,19 @@ object OverlayDataManager {
      * Load overlay entries from SharedPreferences
      * @param context Application context
      * @param overlayName Unique identifier for the overlay
-     * @return List of FabricatedOverlayEntry, or null if not found
+     * @return List of AvailableResourceItemData, or null if not found
      */
     fun loadOverlayEntries(
         context: Context,
         overlayName: String
-    ): List<FabricatedOverlayEntry>? {
+    ): List<AvailableResourceItemData>? {
         val prefs = getPrefs(context)
         val json = prefs.getString(getKey(overlayName), null) ?: return null
         return try {
-            val type = object : TypeToken<List<FabricatedOverlayEntry>>() {}.type
+            val type = object : TypeToken<List<AvailableResourceItemData>>() {}.type
             gson.fromJson(json, type)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Timber.e(e, "Failed to parse overlay entries for $overlayName")
             null
         }
     }

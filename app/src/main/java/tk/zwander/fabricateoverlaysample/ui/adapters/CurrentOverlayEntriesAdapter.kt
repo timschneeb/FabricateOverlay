@@ -7,13 +7,13 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.listitem.ListItemViewHolder
-import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
+import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
 import tk.zwander.fabricateoverlaysample.databinding.ItemCurrentOverlayEntryBinding
 
 class CurrentOverlayEntriesAdapter(
     private val appInfo: ApplicationInfo,
-    private var items: MutableList<FabricatedOverlayEntry>,
-    private val onEditRequested: ((position: Int, entry: FabricatedOverlayEntry) -> Unit)? = null
+    private var items: MutableList<AvailableResourceItemData>,
+    private val onEditRequested: ((position: Int, entry: AvailableResourceItemData) -> Unit)? = null
 ) : RecyclerView.Adapter<CurrentOverlayEntriesAdapter.VH>() {
 
     class VH(val binding: ItemCurrentOverlayEntryBinding) : ListItemViewHolder(binding.root) {
@@ -33,10 +33,10 @@ class CurrentOverlayEntriesAdapter(
         // Bind material ListItemViewHolder to enable segmented appearance handling
         holder.bind(position, items.size)
 
-        holder.tvName.text = item.resourceName
+        holder.tvName.text = item.name
             .replace(appInfo.packageName, "")
             .trim(':')
-        holder.tvValue.text = item.resourceValue.toString()
+        holder.tvValue.text = item.valuesToString()
         holder.ivDelete.setOnClickListener {
             val idx = items.indexOf(item)
             if (idx >= 0) {

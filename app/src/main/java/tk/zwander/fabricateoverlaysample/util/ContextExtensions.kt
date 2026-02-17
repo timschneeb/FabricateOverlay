@@ -1,5 +1,6 @@
 package tk.zwander.fabricateoverlaysample.util
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources
 import android.os.Build
@@ -19,6 +20,7 @@ import tk.zwander.fabricateoverlay.ShizukuUtils
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.databinding.DialogTextinputBinding
 
+@SuppressLint("ObsoleteSdkInt")
 fun Context.ensureHasOverlayPermission(ifTrue: () -> Unit = {}) {
     // UID 0, 1000, or on Android 12 with shell, we can manage overlays.
     if (ShizukuUtils.uid == 0 || ShizukuUtils.uid == 1000 ||

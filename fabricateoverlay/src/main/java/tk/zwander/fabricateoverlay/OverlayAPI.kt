@@ -6,8 +6,14 @@ import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
+import android.content.om.FabricatedOverlay
+import android.content.om.IOverlayManager
+import android.content.om.OverlayIdentifier
+import android.content.om.OverlayManagerTransaction
+import android.os.FabricatedOverlayInternal
+import android.os.FabricatedOverlayInternalEntry
 import android.os.IBinder
-import android.os.ParcelFileDescriptor
+import android.util.Log
 import android.util.TypedValue
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
@@ -156,114 +162,96 @@ class OverlayAPI private constructor(private val iomService: IBinder) {
         }
     }
 
-    private val iomClass = Class.forName("android.content.om.IOverlayManager")
-    private val iomsClass = Class.forName("android.content.om.IOverlayManager\$Stub")
-    private val foClass = Class.forName("android.content.om.FabricatedOverlay")
-    private val fobClass = Class.forName("android.content.om.FabricatedOverlay\$Builder")
-    private val omtClass = Class.forName("android.content.om.OverlayManagerTransaction")
-    private val omtbClass = Class.forName("android.content.om.OverlayManagerTransaction\$Builder")
+    private val omtbClass = Class.forName($$"android.content.om.OverlayManagerTransaction$Builder")
     private val oiClass = Class.forName("android.content.om.OverlayIdentifier")
 
-    private val iomInstance = iomsClass.getMethod(
-        "asInterface",
-        IBinder::class.java
-    ).invoke(
-        null,
-        iomService
-    )
+    private val iomInstance = IOverlayManager.Stub.asInterface(iomService)
 
     /**
-     * Register a new [FabricatedOverlay]. The overlay should immediately be available
+     * Register a new [FabricatedOverlayWrapper]. The overlay should immediately be available
      * to enable, although it won't be enabled automatically.
      *
      * @param overlay overlay to register.
      */
-    fun registerFabricatedOverlay(overlay: FabricatedOverlay) {
-        val fobInstance = fobClass.getConstructor(
-            String::class.java,
-            String::class.java,
-            String::class.java
-        ).newInstance(
-            overlay.sourcePackage,
+    @SuppressLint("BlockedPrivateApi")
+    fun registerFabricatedOverlay(overlay: FabricatedOverlayWrapper) {
+        val frro = FabricatedOverlay(
             overlay.overlayName,
             overlay.targetPackage
-        )
-
-        val setTargetOverlayableMethod = fobClass.getMethod(
-            "setTargetOverlayable",
-            String::class.java
-        )
-
-        val setResourceValueIntMethod = fobClass.getMethod(
-            "setResourceValue",
-            String::class.java,
-            Int::class.java,
-            Int::class.java
-        )
-
-        val setResourceValueStringMethod = fobClass.getMethod(
-            "setResourceValue",
-            String::class.java,
-            String::class.java,
-            Int::class.java
-        )
-
-        val setResourceValueFdMethod = fobClass.getMethod(
-            "setResourceValue",
-            String::class.java,
-            ParcelFileDescriptor::class.java,
-            Int::class.java
-        )
-
-        if (overlay.targetOverlayableName != null) {
-            setTargetOverlayableMethod.invoke(
-                fobInstance,
-                overlay.targetOverlayableName
-            )
+        ).apply {
+            setTargetOverlayable(overlay.targetOverlayableName)
         }
 
+        val mOverlay = frro.javaClass.getDeclaredField("mOverlay").run {
+            isAccessible = true
+            get(frro) as FabricatedOverlayInternal
+        }
+
+        // Needed on Samsung devices due to additional UID/owning package name check
+        // The new AOSP FRRO API would have set this later by itself,
+        // however the deprecated FRRO.Builder API sets it here, which Samsung apparently relies on in their checks.
+        mOverlay.packageName = overlay.sourcePackage
+
         overlay.entries.forEach { (_, entry) ->
-            // TODO: implement other types using string/int/fd setters
-            when (entry.resourceType) {
-                TypedValue.TYPE_STRING, TypedValue.TYPE_FRACTION -> setResourceValueStringMethod.invoke(
-                    fobInstance,
-                    entry.resourceName,
-                    entry.resourceValue.toString(),
-                    entry.resourceType
+            // Decide which setResourceValue overload to use.
+            val isDimension = entry.resourceType == TypedValue.TYPE_DIMENSION ||
+                    entry.resourceType == TypedValue.TYPE_FRACTION ||
+                    entry.resourceType == TypedValue.TYPE_FLOAT
+            if (isDimension) {
+                // Workaround: Framework has an incorrect integer type assertion that does not include TYPE_DIMENSION or TYPE_FRACTION
+                mOverlay.entries.add(
+                    FabricatedOverlayInternalEntry().apply {
+                        resourceName = entry.resourceName
+                        dataType = entry.resourceType
+                        data = entry.resourceValue
+                    }
                 )
-                else -> setResourceValueIntMethod.invoke(
-                    fobInstance,
+            }
+            else if (entry.resourceType == TypedValue.TYPE_STRING) {
+                // Use string overload
+                frro.setResourceValue(
                     entry.resourceName,
                     entry.resourceType,
-                    entry.resourceValue
+                    entry.resourceValueString!!,
+                    null
                 )
+            } else if (entry.resourceType >= TypedValue.TYPE_FIRST_INT && entry.resourceType <= TypedValue.TYPE_LAST_INT) {
+                // Integer-based overload. Ensure type is within int range allowed by framework. .
+                frro.setResourceValue(
+                    entry.resourceName,
+                    entry.resourceType,
+                    entry.resourceValue,
+                    null
+                )
+            }
+            else {
+                // TODO: figure out file descriptors
+
+                Log.e("OverlayAPI", "Resource ${entry.resourceName} has unsupported type ${entry.resourceType}, skipping. Only integer and string types are currently supported.")
+                // throw NotImplementedError("Non-int, non-string resources with binary payloads are not yet supported.")
             }
         }
 
-        val foInstance = fobClass.getMethod("build")
-            .invoke(fobInstance)
-
+        // We can't access the nested Builder class even with stubs, so use reflection
+        val omtbClass = Class.forName($$"android.content.om.OverlayManagerTransaction$Builder")
+        @Suppress("DEPRECATION")
         val omtbInstance = omtbClass.newInstance()
-        omtbClass.getMethod(
-            "registerFabricatedOverlay",
-            foClass
-        ).invoke(
-            omtbInstance, foInstance
+        omtbClass.getMethod("registerFabricatedOverlay", frro.javaClass)
+            .invoke(omtbInstance, frro)
+
+        // Build and commit transaction
+        commit(
+            omtbClass.getMethod("build").invoke(omtbInstance)!! as OverlayManagerTransaction
         )
-
-        val omtInstance = omtbClass.getMethod("build")
-            .invoke(omtbInstance)!!
-
-        commit(omtInstance)
     }
 
     /**
-     * Unregister a [FabricatedOverlay].
+     * Unregister a [FabricatedOverlayWrapper].
      *
      * @param identifier the overlay identifier, retrieved using
-     *   [FabricatedOverlay.identifier] or [FabricatedOverlay.generateOverlayIdentifier].
+     *   [FabricatedOverlayWrapper.identifier] or [FabricatedOverlayWrapper.generateOverlayIdentifier].
      */
-    fun unregisterFabricatedOverlay(identifier: Any) {
+    fun unregisterFabricatedOverlay(identifier: OverlayIdentifier) {
         val omtbInstance = omtbClass.newInstance()
         omtbClass.getMethod(
             "unregisterFabricatedOverlay",
@@ -272,7 +260,7 @@ class OverlayAPI private constructor(private val iomService: IBinder) {
 
         val omtInstance = omtbClass.getMethod(
             "build"
-        ).invoke(omtbInstance)!!
+        ).invoke(omtbInstance)!! as OverlayManagerTransaction
 
         commit(omtInstance)
     }
@@ -280,62 +268,25 @@ class OverlayAPI private constructor(private val iomService: IBinder) {
     /*
         IOverlayManager.aidl wrapper methods.
      */
-    fun getAllOverlays(userId: Int): Map<String, List<OverlayInfo>> {
-        val platformResult = iomClass.getMethod(
-            "getAllOverlays",
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            userId
-        ) as Map<*, *>
+    fun getAllOverlays(userId: Int): Map<String, List<OverlayInfo>> =
+        iomInstance.getAllOverlays(userId)
+            .map { entry -> entry.key.toString() to (entry.value as List<*>)
+            .map { OverlayInfo(it!!) } }
+            .toMap()
 
-        return platformResult.map { entry -> entry.key.toString() to (entry.value as List<*>).map { OverlayInfo(it!!) } }.toMap()
-    }
+    fun getOverlayInfosForTarget(targetPackageName: String, userId: Int): List<OverlayInfo> =
+        iomInstance.getOverlayInfosForTarget(targetPackageName, userId)
+            .map { OverlayInfo(it!!) }
 
-    fun getOverlayInfosForTarget(targetPackageName: String, userId: Int): List<OverlayInfo> {
-        val platformResult = iomClass.getMethod(
-            "getOverlayInfosForTarget",
-            String::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            targetPackageName,
-            userId
-        ) as List<*>
+    fun getOverlayInfo(packageName: String, userId: Int): OverlayInfo? =
+        iomInstance.getOverlayInfo(packageName, userId)?.let {
+            OverlayInfo(it)
+        }
 
-        return platformResult.map { OverlayInfo(it!!) }
-    }
-
-    fun getOverlayInfo(packageName: String, userId: Int): OverlayInfo {
-        val platformResult = iomClass.getMethod(
-            "getOverlayInfo",
-            String::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            userId
-        )
-
-        return OverlayInfo(platformResult!!)
-    }
-
-    /**
-     * @param identifier should be retrieved using [FabricatedOverlay.generateOverlayIdentifier].
-     */
-    fun getOverlayInfoByIdentifier(identifier: Any, userId: Int): OverlayInfo {
-        val platformResult = iomClass.getMethod(
-            "getOverlayInfoByIdentifier",
-            oiClass,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            identifier,
-            userId
-        )
-
-        return OverlayInfo(platformResult!!)
-    }
+    fun getOverlayInfoByIdentifier(identifier: OverlayIdentifier, userId: Int): OverlayInfo? =
+        iomInstance.getOverlayInfoByIdentifier(identifier, userId)?.let {
+            OverlayInfo(it)
+        }
 
     /**
      * Use this for changing the state of fabricated overlays.
@@ -351,121 +302,36 @@ class OverlayAPI private constructor(private val iomService: IBinder) {
 
         val omtInstance = omtbClass.getMethod(
             "build"
-        ).invoke(omtbInstance)!!
+        ).invoke(omtbInstance)!! as OverlayManagerTransaction
 
         commit(omtInstance)
     }
 
-    fun setEnabled(packageName: String, enable: Boolean, userId: Int): Boolean {
-        return iomClass.getMethod(
-            "setEnabled",
-            String::class.java,
-            Boolean::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            enable,
-            userId
-        ) as Boolean
-    }
+    fun setEnabled(packageName: String, enable: Boolean, userId: Int): Boolean =
+        iomInstance.setEnabled(packageName, enable, userId)
 
-    fun setEnabledExclusive(packageName: String, enable: Boolean, userId: Int): Boolean {
-        return iomClass.getMethod(
-            "setEnabledExclusive",
-            String::class.java,
-            Boolean::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            enable,
-            userId
-        ) as Boolean
-    }
+    fun setEnabledExclusive(packageName: String, enable: Boolean, userId: Int): Boolean =
+        iomInstance.setEnabledExclusive(packageName, enable, userId)
 
-    fun setEnabledExclusiveInCategory(packageName: String, userId: Int): Boolean {
-        return iomClass.getMethod(
-            "setEnabledExclusiveInCategory",
-            String::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            userId
-        ) as Boolean
-    }
+    fun setEnabledExclusiveInCategory(packageName: String, userId: Int): Boolean =
+        iomInstance.setEnabledExclusiveInCategory(packageName, userId)
 
-    fun setPriority(packageName: String, newParentPackageName: String, userId: Int): Boolean {
-        return iomClass.getMethod(
-            "setPriority",
-            String::class.java,
-            String::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            newParentPackageName,
-            userId
-        ) as Boolean
-    }
+    fun setPriority(packageName: String, newParentPackageName: String, userId: Int): Boolean =
+        iomInstance.setPriority(packageName, newParentPackageName, userId)
 
-    fun setHighestPriority(packageName: String, userId: Int): Boolean {
-        return iomClass.getMethod(
-            "setHighestPriority",
-            String::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            userId
-        ) as Boolean
-    }
+    fun setHighestPriority(packageName: String, userId: Int): Boolean =
+        iomInstance.setHighestPriority(packageName, userId)
 
-    fun setLowestPriority(packageName: String, userId: Int): Boolean {
-        return iomClass.getMethod(
-            "setLowestPriority",
-            String::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            userId
-        ) as Boolean
-    }
+    fun setLowestPriority(packageName: String, userId: Int): Boolean =
+        iomInstance.setLowestPriority(packageName, userId)
 
-    @Suppress("UNCHECKED_CAST")
-    fun getDefaultOverlayPackages(): Array<String> {
-        return iomClass.getMethod(
-            "getDefaultOverlayPackages"
-        ).invoke(
-            iomInstance
-        ) as Array<String>
-    }
+    fun getDefaultOverlayPackages(): Array<String> = iomInstance.defaultOverlayPackages
 
     fun invalidateCachesForOverlay(packageName: String, userId: Int) {
-        iomClass.getMethod(
-            "invalidateCachesForOverlay",
-            String::class.java,
-            Int::class.java
-        ).invoke(
-            iomInstance,
-            packageName,
-            userId
-        )
+        iomInstance.invalidateCachesForOverlay(packageName, userId)
     }
 
-    /**
-     * @param transaction should be an [android.content.om.OverlayManagerTransaction].
-     */
-    @Suppress("MemberVisibilityCanBePrivate")
-    fun commit(transaction: Any) {
-        iomClass.getMethod(
-            "commit",
-            omtClass
-        ).invoke(
-            iomInstance,
-            transaction
-        )
+    fun commit(transaction: OverlayManagerTransaction) {
+        iomInstance.commit(transaction)
     }
 }

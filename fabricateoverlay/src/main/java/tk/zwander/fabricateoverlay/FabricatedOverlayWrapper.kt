@@ -3,6 +3,7 @@
 package tk.zwander.fabricateoverlay
 
 import android.annotation.SuppressLint
+import android.content.om.OverlayIdentifier
 import android.util.TypedValue
 
 /**
@@ -23,7 +24,7 @@ import android.util.TypedValue
  *                      match your application package.
  */
 @SuppressLint("PrivateApi")
-class FabricatedOverlay(
+class FabricatedOverlayWrapper(
     val overlayName: String,
     val targetPackage: String,
     val sourcePackage: String = "com.android.shell",
@@ -39,9 +40,9 @@ class FabricatedOverlay(
         fun generateOverlayIdentifier(
             overlayName: String?,
             sourcePackage: String = "com.android.shell"
-        ): Any {
+        ): OverlayIdentifier {
             return oiClass.getConstructor(String::class.java, String::class.java)
-                .newInstance(sourcePackage, overlayName)
+                .newInstance(sourcePackage, overlayName) as OverlayIdentifier
         }
     }
 

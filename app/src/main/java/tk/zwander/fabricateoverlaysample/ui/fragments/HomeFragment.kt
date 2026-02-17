@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import tk.zwander.fabricateoverlay.OverlayAPI
 import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
@@ -108,7 +109,7 @@ class HomeFragment : Fragment(), MainActivity.TitleProvider {
             }
             catch (e: IllegalStateException) {
                 // This can occur if the fragment is destroyed while loading overlays
-                e.printStackTrace()
+                Timber.w(e, "Failed to load overlays, fragment may be destroyed")
                 binding.root.post {
                     binding.progressLoading.visibility = View.GONE
                 }

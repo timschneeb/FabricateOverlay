@@ -4,7 +4,7 @@ import android.os.Parcel
 import android.os.Parcelable
 
 /**
- * A resource entry for a [FabricatedOverlay].
+ * A resource entry for a [FabricatedOverlayWrapper].
  *
  * @param resourceName the name of the resource to overlay. Should
  *   be fully qualified (e.g., "com.android.systemui:integer/quick_settings_num_columns").
@@ -15,18 +15,21 @@ import android.os.Parcelable
 data class FabricatedOverlayEntry(
     var resourceName: String,
     var resourceType: Int,
-    var resourceValue: Int
+    var resourceValue: Int,
+    var resourceValueString: String? = null
 ) : Parcelable {
     constructor(parcel: Parcel) : this(
         parcel.readString() ?: "",
         parcel.readInt(),
-        parcel.readInt()
+        parcel.readInt(),
+        parcel.readString()
     )
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
         parcel.writeString(resourceName)
         parcel.writeInt(resourceType)
         parcel.writeInt(resourceValue)
+        parcel.writeString(resourceValueString)
     }
 
     override fun describeContents(): Int = 0

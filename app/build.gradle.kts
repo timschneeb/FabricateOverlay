@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("kotlin-parcelize")
 }
 
 android {
@@ -8,7 +9,7 @@ android {
     defaultConfig {
         applicationId = "tk.zwander.fabricateoverlay"
         namespace = "tk.zwander.fabricateoverlaysample"
-        minSdk = 31
+        minSdk = 34
         targetSdk = 34
         versionCode = 5
         versionName = "1.1.0"
@@ -50,8 +51,11 @@ dependencies {
 
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("io.github.reandroid:ARSCLib:1.3.8")
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
+    implementation("com.jakewharton.timber:timber:5.0.1")
 
     implementation(project(":fabricateoverlay"))
+    compileOnly(project(":app:hiddenapi"))
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

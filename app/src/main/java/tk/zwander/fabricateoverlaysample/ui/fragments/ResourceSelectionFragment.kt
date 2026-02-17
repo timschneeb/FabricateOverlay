@@ -22,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
 import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
 import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
@@ -43,15 +42,14 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
     private var allResourcesByType: Map<String, List<AvailableResourceItemData>> = mapOf()
     private val selectedItems = mutableSetOf<AvailableResourceItemData>()
 
-    private var existingEntries: List<FabricatedOverlayEntry> = listOf()
+    private var existingEntries: List<AvailableResourceItemData> = listOf()
     private var resultPosted = false
 
     // Post the currently selected entries to the parent fragment once.
     private fun postSelections() {
         if (resultPosted) return
-        val toPost = ArrayList(selectedItems.map { FabricatedOverlayEntry(it.name, it.type, 0) })
         val bundle = Bundle().apply {
-            putParcelableArrayList(KEY_SELECTED_ENTRIES, toPost)
+            putParcelableArrayList(KEY_SELECTED_ENTRIES, ArrayList(selectedItems))
         }
         parentFragmentManager.setFragmentResult(KEY_RESOURCES_SELECTED, bundle)
         resultPosted = true
@@ -106,7 +104,7 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
 
         // Read any existing entries to pre-populate selection
         existingEntries = requireArguments()
-            .getParcelableArrayListCompat<FabricatedOverlayEntry>("existing_entries")
+            .getParcelableArrayListCompat<AvailableResourceItemData>("existing_entries")
             ?: listOf()
 
         info?.let(::loadResources)
@@ -153,6 +151,7 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
 
         val listItems = ArrayList<ResourceListItem>()
         grouped.forEach { (type, list) ->
+            // TODO: also group by resource package (if there are multiple)
             listItems.add(ResourceListItem.Header(type))
             list.forEach { listItems.add(ResourceListItem.Item(it)) }
         }
@@ -231,9 +230,7 @@ class ResourceSelectionFragment : SearchableBaseFragment<ResourceSelectViewModel
 
                 // Pre-select items that were already present in `existingEntries`.
                 if (existingEntries.isNotEmpty()) {
-                    // existingEntries use FabricatedOverlayEntry.resourceName which is the fully-qualified
-                    // resource name in other flows; match against AvailableResourceItemData.name.
-                    val toSelect = flat.filter { f -> existingEntries.any { it.resourceName == f.name && it.resourceType == f.type } }
+                    val toSelect = flat.filter { f -> existingEntries.any { it.name == f.name } }
                     selectedItems.clear()
                     selectedItems.addAll(toSelect)
                 }

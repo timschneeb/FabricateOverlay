@@ -6,7 +6,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 31
+        minSdk = 34
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
@@ -44,6 +44,8 @@ dependencies {
     val shizukuVersion = "13.1.5"
     implementation("dev.rikka.shizuku:api:$shizukuVersion")
     implementation("dev.rikka.shizuku:provider:$shizukuVersion")
+
+    compileOnly(project(":app:hiddenapi"))
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

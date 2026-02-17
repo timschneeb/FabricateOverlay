@@ -1,4 +1,3 @@
-* rewrite resource value display, value system (support other datatypes)
-* implement proper edit dialogs
+* support more data types
 * respect overlayable tags properly
-* take over current value of newly added resources
+* add system-app-only filter to app list in action bar

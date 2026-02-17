@@ -9,7 +9,7 @@ pluginManagement {
         id("com.android.application") version "9.0.0"
         id("com.android.library") version "9.0.0"
         id("org.jetbrains.kotlin.android") version "2.3.10"
-        id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
+        id("kotlin-parcelize") version "2.3.10"
     }
 }
 
@@ -26,3 +26,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "FabricateOverlay"
 include(":app", ":fabricateoverlay")
+include(":app:hiddenapi")

@@ -3,7 +3,6 @@ package tk.zwander.fabricateoverlaysample.ui.fragments
 import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
-import android.util.Log
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
@@ -11,16 +10,19 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import tk.zwander.fabricateoverlay.FabricatedOverlay
+import androidx.recyclerview.widget.RecyclerView
+import timber.log.Timber
 import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
+import tk.zwander.fabricateoverlay.FabricatedOverlayWrapper
 import tk.zwander.fabricateoverlay.OverlayAPI
 import tk.zwander.fabricateoverlaysample.MainActivity
 import tk.zwander.fabricateoverlaysample.R
+import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
 import tk.zwander.fabricateoverlaysample.databinding.FragmentCurrentOverlaysBinding
 import tk.zwander.fabricateoverlaysample.ui.adapters.CurrentOverlayEntriesAdapter
-import tk.zwander.fabricateoverlaysample.util.ApkParser
 import tk.zwander.fabricateoverlaysample.util.MarginItemDecoration
 import tk.zwander.fabricateoverlaysample.util.OverlayDataManager
+import tk.zwander.fabricateoverlaysample.util.TypedValueExt
 import tk.zwander.fabricateoverlaysample.util.ensureHasOverlayPermission
 import tk.zwander.fabricateoverlaysample.util.getParcelableArrayListCompat
 import tk.zwander.fabricateoverlaysample.util.getParcelableCompat
@@ -30,7 +32,7 @@ import tk.zwander.fabricateoverlaysample.util.toast
 import java.lang.reflect.InvocationTargetException
 
 class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
-    private val entries = mutableListOf<FabricatedOverlayEntry>()
+    private val entries = mutableListOf<AvailableResourceItemData>()
     private lateinit var appInfo: ApplicationInfo
 
     // Editing mode support
@@ -38,6 +40,12 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
 
     private lateinit var adapter: CurrentOverlayEntriesAdapter
     private lateinit var binding: FragmentCurrentOverlaysBinding
+
+    private val dataObserver = object : RecyclerView.AdapterDataObserver() {
+        override fun onChanged() { updateEmptyViewState() }
+        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) { updateEmptyViewState() }
+        override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) { updateEmptyViewState() }
+    }
 
     @SuppressLint("NotifyDataSetChanged")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,38 +68,30 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
 
         parentFragmentManager.setFragmentResultListener(ResourceSelectionFragment.KEY_RESOURCES_SELECTED, this) { _, bundle ->
             val selected =
-                bundle.getParcelableArrayListCompat<FabricatedOverlayEntry>(ResourceSelectionFragment.KEY_SELECTED_ENTRIES)
+                bundle.getParcelableArrayListCompat<AvailableResourceItemData>(ResourceSelectionFragment.KEY_SELECTED_ENTRIES)
                     ?: return@setFragmentResultListener
 
-            val resultMap = LinkedHashMap<String, FabricatedOverlayEntry>()
+            val resultMap = LinkedHashMap<String, AvailableResourceItemData>()
+            // Keep any existing entries (prioritize local edits).
             for (old in entries) {
-                val fullMatch = selected.associateBy { it.resourceName }[old.resourceName]
-                if (fullMatch != null) {
-                    resultMap[fullMatch.resourceName] = fullMatch
+                resultMap[old.name] = old
+            }
+
+            // Append remaining selected entries (in picker order), avoiding duplicates.
+            for (s in selected) {
+                if (resultMap.containsKey(s.name)) {
                     continue
                 }
-
-                val short = old.resourceName.substringAfterLast('/')
-                val shortMatch = selected.associateBy { it.resourceName.substringAfterLast('/') }[short]
-                if (shortMatch != null) {
-                    resultMap[shortMatch.resourceName] = shortMatch
-                }
+                resultMap[s.name] = s
             }
 
-            // Append remaining selected entries (in picker order), avoiding duplicates
-            for (s in selected) {
-                if (!resultMap.containsKey(s.resourceName)) {
-                    resultMap[s.resourceName] = s
-                }
-            }
-
-            // Replace backing list with deduplicated selection
-            entries.clear()
-            entries.addAll(resultMap.values)
-            if (::adapter.isInitialized) {
-                adapter.notifyDataSetChanged()
-                updateEmptyViewState()
-            }
+             // Replace backing list with deduplicated selection
+             entries.clear()
+             entries.addAll(resultMap.values)
+             if (::adapter.isInitialized) {
+                 adapter.notifyDataSetChanged()
+                 updateEmptyViewState()
+             }
         }
     }
 
@@ -107,6 +107,7 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
             adapter = CurrentOverlayEntriesAdapter(appInfo, entries, onEditRequested = { pos, entry ->
                 handleEditEntry(pos, entry)
             }).also {
+                it.registerAdapterDataObserver(dataObserver)
                 this@CurrentOverlayEntriesFragment.adapter = it
             }
             addItemDecoration(MarginItemDecoration())
@@ -157,27 +158,15 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
 
                     try {
                         // Attempt to get existing overlay, if it doesn't exist we'll get an exception
-                        val id = api.getOverlayInfoByIdentifier(
-                            FabricatedOverlay.generateOverlayIdentifier(
-                                fullName,
-                                OverlayAPI.servicePackage ?: "com.android.shell"
-                            ),
-                            0
+                        val id = FabricatedOverlayWrapper.generateOverlayIdentifier(
+                            fullName,
+                            OverlayAPI.servicePackage ?: "com.android.shell"
                         )
                         api.unregisterFabricatedOverlay(id)
                     }
                     catch (e: Exception) {
                         // No existing overlay, nothing to unregister
-                        Log.e("CurrentOverlayEntriesFragment", "No existing overlay to unregister", e)
-                    }
-
-                    val realPackage = try {
-                        ApkParser(ctx, appInfo.packageName).realPackage?.also {
-                            Log.d("CurrentOverlayEntriesFragment", "Using real package name $it")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("CurrentOverlayEntriesFragment", "Failed to parse APK for real package name, falling back to manifest package name", e)
-                        ctx.toast("Exception while parsing APK: ${e.message}")
+                        Timber.e(e, "No existing overlay to unregister")
                     }
 
                     val childOverlays =
@@ -197,11 +186,11 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                         ?.firstOrNull { it.targetOverlayableName != null && it.isEnabled }
                         ?.targetOverlayableName
                         ?.also {
-                            Log.d("FabricateOverlay", "Using target overlayable $it from existing overlay")
+                            Timber.d("Using target overlayable $it from existing overlay")
                         }
 
                     api.registerFabricatedOverlay(
-                        FabricatedOverlay(
+                        FabricatedOverlayWrapper(
                             fullName,
                             appInfo.packageName,
                             OverlayAPI.servicePackage ?: "com.android.shell",
@@ -210,10 +199,17 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                             this@CurrentOverlayEntriesFragment
                                 .entries
                                 .forEach { e ->
-                                    if (realPackage != null && !e.resourceName.startsWith("$realPackage:")) {
-                                        e.resourceName = e.resourceName.replaceFirst("${appInfo.packageName}:", "$realPackage:")
+                                    if (e.values.isEmpty()) {
+                                        Timber.w("Skipping resource ${e.name} with no value")
+                                        return@forEach
                                     }
-                                    entries[e.resourceName] = e
+
+                                    entries[e.name] = FabricatedOverlayEntry(
+                                        e.name,
+                                        e.type,
+                                        e.values.first().data ?: 0,
+                                        e.values.first().stringData
+                                    )
                                 }
                         }
                     )
@@ -223,70 +219,171 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
                     }
                     catch (e: InvocationTargetException) {
                         context?.showAlert(e.targetException)
-                        Log.e("CurrentOverlayEntriesFragment", "Failed to enable overlay", e.targetException)
+                        Timber.e(e.targetException, "Failed to enable overlay")
                     }
 
                     // return to root fragment
                     activity?.supportFragmentManager?.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 } catch (e: Exception) {
                     ctx.showAlert(e)
+                    Timber.e(e, "Failed to register overlay")
                 }
             }
         }
     }
 
-    private fun handleEditEntry(position: Int, entry: FabricatedOverlayEntry) {
+    private fun handleEditEntry(position: Int, entry: AvailableResourceItemData) {
         val ctx = requireContext()
         val simpleName = entry.resourceName.substringAfterLast('/')
-        when (entry.resourceType) {
+        val resolvedValue = entry.values.lastOrNull() ?: return
+
+        when (entry.type) {
             TypedValue.TYPE_INT_BOOLEAN -> {
                 // Flip boolean value
-                entry.resourceValue = if (entry.resourceValue != 0) 0 else 1
+                entry.setValue(if (resolvedValue.data != 0) 0 else 1)
                 adapter.notifyItemChanged(position)
-                updateEmptyViewState()
             }
-            TypedValue.TYPE_INT_COLOR_ARGB8 -> {
-                // Color as hex string
-                val hex = String.format("#%08X", entry.resourceValue)
+            TypedValue.TYPE_INT_COLOR_ARGB8,
+            TypedValue.TYPE_INT_COLOR_RGB8,
+            TypedValue.TYPE_INT_COLOR_ARGB4,
+            TypedValue.TYPE_INT_COLOR_RGB4 -> {
+                // Accept several hex colour formats: AARRGGBB, RRGGBB, ARGB (4-digit), RGB (3-digit).
+                val hex = resolvedValue.displayString()
                 ctx.showInputAlert(layoutInflater, simpleName, getString(R.string.edit_color_hint), hex) { input ->
-                    // Parse hex input (allow # prefix)
-                    val cleaned = input.trim().removePrefix("#")
+                    // Parse hex input (allow # or 0x prefixes)
+                    val cleaned = input.trim().removePrefix("#").removePrefix("0x").lowercase()
+
+                    fun nibbleToByte(c: Char): Int = Integer.parseInt(c.toString(), 16) * 17
+
                     try {
-                        val value = cleaned.toLong(16).toInt()
-                        entry.resourceValue = value
+                        val colorInt = when (cleaned.length) {
+                            8 -> cleaned.toLong(16).toInt() // aarrggbb
+                            6 -> {
+                                // rrggbb -> add full alpha
+                                val rgb = cleaned.toLong(16).toInt() and 0x00FFFFFF
+                                (0xFF shl 24) or rgb
+                            }
+                            4 -> {
+                                // argb -> each nibble expands to byte (x -> x*17)
+                                val a = nibbleToByte(cleaned[0]) and 0xFF
+                                val r = nibbleToByte(cleaned[1]) and 0xFF
+                                val g = nibbleToByte(cleaned[2]) and 0xFF
+                                val b = nibbleToByte(cleaned[3]) and 0xFF
+                                (a shl 24) or (r shl 16) or (g shl 8) or b
+                            }
+                            3 -> {
+                                // rgb -> expand to rrggbb and add full alpha
+                                val r = nibbleToByte(cleaned[0]) and 0xFF
+                                val g = nibbleToByte(cleaned[1]) and 0xFF
+                                val b = nibbleToByte(cleaned[2]) and 0xFF
+                                (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                            }
+                            else -> throw IllegalArgumentException("Invalid color format: $input")
+                        }
+
+                        entry.setValue(colorInt)
                         adapter.notifyItemChanged(position)
-                        updateEmptyViewState()
                     } catch (e: Exception) {
                         ctx.showAlert(e)
                     }
                 }
             }
-            TypedValue.TYPE_INT_DEC, TypedValue.TYPE_DIMENSION -> {
+            TypedValue.TYPE_INT_DEC, TypedValue.TYPE_INT_HEX -> {
                 // Numeric input
-                ctx.showInputAlert(layoutInflater, simpleName, null, entry.resourceValue.toString(), true) { input ->
+                ctx.showInputAlert(layoutInflater, simpleName,
+                    getString(R.string.edit_integer_hint), resolvedValue.data.toString(), true) { input ->
                     val num = input.toIntOrNull()
                     if (num == null) {
                         ctx.toast(getString(R.string.invalid_value))
                     } else {
-                        entry.resourceValue = num
+                        entry.setValue(num)
                         adapter.notifyItemChanged(position)
-                        updateEmptyViewState()
                     }
                 }
             }
-            else -> {
-                // Fallback: open simple text input to accept integer
-                // TODO
-                ctx.showInputAlert(layoutInflater, simpleName, null, entry.resourceValue.toString(), true) { input ->
-                    val num = input.toIntOrNull()
+            TypedValue.TYPE_DIMENSION -> {
+                // Dimension input (e.g., "16dp", "20sp")
+                val current = resolvedValue.displayString()
+                ctx.showInputAlert(layoutInflater, simpleName, getString(R.string.edit_dimension_hint), current) { input ->
+                    // Parse dimension input (allow unit suffix)
+                    val regex = Regex("(-?\\d+\\.?\\d*)\\s*(\\w{2,})?")
+                    val match = regex.matchEntire(input.trim())
+                    if (match != null) {
+                        val value = match.groupValues[1].toFloatOrNull()
+                        val unit = match.groupValues[2]
+                        Timber.d("Parsed dimension input: value=$value, unit=$unit")
+                        if (value != null) {
+                            val unit = when (unit) {
+                                "px" -> TypedValue.COMPLEX_UNIT_PX
+                                "dp", "dip" -> TypedValue.COMPLEX_UNIT_DIP
+                                "sp" -> TypedValue.COMPLEX_UNIT_SP
+                                "pt" -> TypedValue.COMPLEX_UNIT_PT
+                                "in" -> TypedValue.COMPLEX_UNIT_IN
+                                "mm" -> TypedValue.COMPLEX_UNIT_MM
+                                else -> TypedValue.COMPLEX_UNIT_PX // default to pixels/unitless-float
+                            }
+                            entry.setValue(TypedValueExt.createComplexDimension(value, unit))
+                            adapter.notifyItemChanged(position)
+                        } else {
+                            ctx.toast(getString(R.string.invalid_value))
+                        }
+                    } else {
+                        ctx.toast(getString(R.string.invalid_value))
+                    }
+                }
+            }
+            TypedValue.TYPE_FRACTION -> {
+                // Accept fraction input like "50%" or "50%p"
+                val current = resolvedValue.displayString()
+                ctx.showInputAlert(layoutInflater, simpleName, getString(R.string.edit_fraction_hint), current) { input ->
+                    // Match number with optional % or %p suffix
+                    val regex = Regex("(-?\\d+\\.?\\d*)\\s*(%p|%)?", RegexOption.IGNORE_CASE)
+                    val match = regex.matchEntire(input.trim())
+                    if (match != null) {
+                        val num = match.groupValues[1].toFloatOrNull()
+                        if (num != null) {
+                            val unit = when (match.groupValues[2]) {
+                                "%p" -> TypedValue.COMPLEX_UNIT_FRACTION_PARENT
+                                else -> TypedValue.COMPLEX_UNIT_FRACTION
+                            }
+
+                            entry.setValue(
+                                TypedValueExt.createComplexDimension(num / 100, unit)
+                            )
+                            adapter.notifyItemChanged(position)
+                        } else {
+                            ctx.toast(getString(R.string.invalid_value))
+                        }
+                    } else {
+                        ctx.toast(getString(R.string.invalid_value))
+                    }
+                }
+            }
+            TypedValue.TYPE_FLOAT -> {
+                val current = java.lang.Float.intBitsToFloat(resolvedValue.data ?: 0).toString()
+                ctx.showInputAlert(layoutInflater, simpleName, null, current, true) { input ->
+                    val num = input.trim().toFloatOrNull()
                     if (num == null) {
                         ctx.toast(getString(R.string.invalid_value))
                     } else {
-                        entry.resourceValue = num
-                        adapter.notifyItemChanged(position)
-                        updateEmptyViewState()
+                        try {
+                            entry.setValue(java.lang.Float.floatToIntBits(num))
+                            adapter.notifyItemChanged(position)
+                        } catch (e: Exception) {
+                            ctx.showAlert(e)
+                        }
                     }
                 }
+            }
+            TypedValue.TYPE_STRING -> {
+                val current = resolvedValue.stringData ?: ""
+                ctx.showInputAlert(layoutInflater, simpleName, null, current, false) { input ->
+                    entry.setValue(input)
+                    adapter.notifyItemChanged(position)
+                }
+            }
+            else -> {
+                ctx.toast("Unsupported: ${entry.type}")
             }
         }
     }
@@ -298,6 +395,7 @@ class CurrentOverlayEntriesFragment : Fragment(), MainActivity.TitleProvider {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        binding.rvEntries.adapter?.unregisterAdapterDataObserver(dataObserver)
         binding.rvEntries.adapter = null
     }
 

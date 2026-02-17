@@ -6,7 +6,9 @@ import android.content.res.Resources.NotFoundException
 import android.util.TypedValue
 import com.reandroid.apk.ApkModule
 import com.reandroid.arsc.model.ResourceEntry
+import timber.log.Timber
 import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
+import tk.zwander.fabricateoverlaysample.data.ResourceValueInfo
 import java.util.TreeMap
 
 val supportedTypes = setOf(
@@ -15,8 +17,7 @@ val supportedTypes = setOf(
     "dimen",
     "fraction",
     "integer",
-    "bool",
-    "id"
+    "bool"
 )
 
 fun getAppResources(
@@ -71,16 +72,15 @@ fun getAppResources(
                         "color" -> TypedValue.TYPE_INT_COLOR_ARGB8
                         "bool" -> TypedValue.TYPE_INT_BOOLEAN
                         "dimen" -> TypedValue.TYPE_DIMENSION
-                        "fraction" -> TypedValue.TYPE_STRING // TYPE_FRACTION
+                        "fraction" -> TypedValue.TYPE_FRACTION
                         "string" -> TypedValue.TYPE_STRING
-                        "id" -> TypedValue.TYPE_INT_DEC
                         else -> 0
                     }
 
                     val current = try {
-                        context.getCurrentResourceValue(packageName, fqrn)
+                        context.getCurrentResourceValue(pkgBlockName, fqrn)
                     } catch (e: Throwable) {
-                        e.printStackTrace()
+                        Timber.e(e, "Failed to get current value for resource $fqrn")
                         arrayOf()
                     }
 
@@ -89,7 +89,9 @@ fun getAppResources(
                             AvailableResourceItemData(
                                 fqrn,
                                 rName,
-                                valueType,
+                                current.lastOrNull()?.type ?: valueType.also {
+                                    Timber.w("Could not determine actual type for resource $fqrn, defaulting to $it")
+                                },
                                 current
                             )
                         )
@@ -107,51 +109,58 @@ fun getAppResources(
 
 
 @SuppressLint("DiscouragedApi")
-fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<String> {
+fun Context.getCurrentResourceValue(packageName: String, fqrn: String): Array<ResourceValueInfo> {
     val res = packageManager.getResourcesForApplication(packageName)
+
+    // Resolve a typed value recursively following TYPE_REFERENCE/TYPE_ATTRIBUTE
+    fun resolveChain(initial: TypedValue): List<ResourceValueInfo> {
+        val chain = ArrayList<ResourceValueInfo>()
+        val visited = mutableSetOf<Int>()
+        var current = TypedValue()
+        current.setTo(initial)
+
+        while (true) {
+            chain.add(
+                ResourceValueInfo(
+                    current.type,
+                    current.data,
+                    if(current.type == TypedValue.TYPE_STRING) current.string?.toString() else null
+                )
+            )
+
+            // If this is a reference to another resource, try to follow it by resourceId
+            val isRef = current.type == TypedValue.TYPE_REFERENCE || current.type == TypedValue.TYPE_ATTRIBUTE
+            val resid = current.resourceId
+            if (isRef && resid != 0 && !visited.contains(resid)) {
+                visited.add(resid)
+                try {
+                    val next = TypedValue()
+                    // Get the value without resolving refs so we can track the chain step-by-step
+                    res.getValue(resid, next, false)
+                    current = next
+                    continue
+                } catch (e: Exception) {
+                    // If we can't resolve by id, stop following
+                    Timber.e(e, "Failed to resolve reference with id $resid")
+                    break
+                }
+            }
+
+            // Not a reference (or can't follow): we're at the final value
+            break
+        }
+
+        return chain
+    }
 
     try {
         val value = TypedValue()
+        // Try to get the named value. Do not resolve refs here: we want the original step first
         res.getValue(fqrn, value, false /* resolveRefs */)
-        val valueString = value.coerceToString()
-        res.getValue(fqrn, value, true /* resolveRefs */)
-        val resolvedString = value.coerceToString()
 
-        return arrayOf(
-            if (valueString == resolvedString) {
-                resolvedString.toString()
-            } else {
-                "$valueString -> $resolvedString"
-            }
-        )
-    } catch (e: NotFoundException) {
-        e.printStackTrace()
-    }
-
-    return try {
-        val split = fqrn.split(":", "/")
-
-        val pkg = split[0]
-        val type = split[1]
-        val name = split[2]
-        val resid = res.getIdentifier(name, type, pkg)
-        if (resid == 0) {
-            throw NotFoundException()
-        }
-        val array = res.obtainTypedArray(resid)
-        val tv = TypedValue()
-
-        val items = ArrayList<String>(array.length())
-
-        for (i in 0 until array.length()) {
-            array.getValue(i, tv)
-            items.add(tv.coerceToString().toString())
-        }
-        array.recycle()
-
-        items.toTypedArray()
-    } catch (e: NotFoundException) {
-        e.printStackTrace()
-        arrayOf()
+        return resolveChain(value).toTypedArray()
+    } catch (_: NotFoundException) {
+        Timber.e("Resource not found: $fqrn")
+        return arrayOf()
     }
 }

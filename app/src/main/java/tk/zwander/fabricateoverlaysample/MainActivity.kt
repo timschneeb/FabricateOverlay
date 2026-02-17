@@ -10,9 +10,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import org.lsposed.hiddenapibypass.HiddenApiBypass
-import tk.zwander.fabricateoverlay.FabricatedOverlayEntry
-import tk.zwander.fabricateoverlay.ShizukuUtils
 import tk.zwander.fabricateoverlay.OverlayInfo
+import tk.zwander.fabricateoverlay.ShizukuUtils
+import tk.zwander.fabricateoverlaysample.data.AvailableResourceItemData
 import tk.zwander.fabricateoverlaysample.databinding.ActivityMainBinding
 import tk.zwander.fabricateoverlaysample.ui.fragments.AppListFragment
 import tk.zwander.fabricateoverlaysample.ui.fragments.CurrentOverlayEntriesFragment
@@ -123,7 +123,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Navigate to the resources picker for the given app. Optionally pass existing selected entries
-    fun navigateToResourcePicker(appInfo: ApplicationInfo, existingEntries: ArrayList<FabricatedOverlayEntry>? = null) {
+    fun navigateToResourcePicker(appInfo: ApplicationInfo, existingEntries: ArrayList<AvailableResourceItemData>? = null) {
         val frag = ResourceSelectionFragment()
         val args = Bundle()
         args.putParcelable("appInfo", appInfo)

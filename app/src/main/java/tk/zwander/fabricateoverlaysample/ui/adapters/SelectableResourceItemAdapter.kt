@@ -1,7 +1,6 @@
 package tk.zwander.fabricateoverlaysample.ui.adapters
 
 import android.annotation.SuppressLint
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.view.isVisible
@@ -79,7 +78,8 @@ class SelectableResourceItemAdapter(
             is ResourceListItem.Item -> {
                 val h = holder as ItemVH
                 h.binding.tvName.text = listItem.data.resourceName
-                h.binding.tvVal.text = listItem.data.values.joinToString(", ")
+                // Show formatted ResourceValueInfo items joined by comma
+                h.binding.tvVal.text = listItem.data.valuesToString()
                 h.binding.root.setOnClickListener {
                     h.binding.cbSelect.performClick()
                 }
@@ -126,7 +126,7 @@ class SelectableResourceItemAdapter(
         return Pair(sectionPosition, sectionCount)
     }
 
-    @Suppress("NotifyDataSetChanged")
+    @SuppressLint("NotifyDataSetChanged")
     fun updateFull(newItems: List<ResourceListItem>) {
         fullItems = newItems
         // Compute which headers actually have children so we can show the chevron only when useful.
